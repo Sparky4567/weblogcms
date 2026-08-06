@@ -86,6 +86,16 @@ The server runs at `http://localhost:3000` by default. You can change the port u
 PORT=8080 bun start
 ```
 
+### 🔑 Default Admin Credentials
+
+When the application runs for the first time, a default administrator account is automatically created:
+
+- **Username**: `admin`
+- **Password**: `admin123`
+
+> 💡 **Tip**: You can change your admin username and password at any time via the admin dashboard settings or using the `PUT /api/auth/credentials` API endpoint.
+
+
 ---
 
 ## 🧪 Testing
