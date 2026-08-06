@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weblogger CMS - High Performance Bun Blog Engine</title>
+  <meta name="description" content="A powerful Weblogger CMS built with Bun, SQLite, HTML5 & modern CSS. Multi-blog support, rich layout gadgets, themes, and comments moderation.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- APP SIDEBAR -->
+    <aside class="app-sidebar">
+      <div class="brand-header">
+        <div class="brand-icon">W</div>
+        <div>
+          <span class="brand-title">Weblogger CMS</span>
+          <span class="brand-badge">Bun</span>
+        </div>
+      </div>
+
+      <!-- BLOG SELECTOR -->
+      <div class="blog-switcher-box">
+        <div class="blog-select-wrapper">
+          <select id="blog-selector" class="blog-select" aria-label="Select Active Blog">
+            <option value="">Loading blogs...</option>
+          </select>
+        </div>
+        <button id="btn-open-create-blog" class="new-blog-btn">
+          <span>+ Create New Blog</span>
+        </button>
+      </div>
+
+      <!-- NAV MENU -->
+      <nav class="nav-menu">
+        <a class="nav-item active" data-view="posts">
+          <span class="nav-item-icon">📝</span>
+          <span>Posts</span>
+          <span id="badge-posts-count" class="nav-badge">0</span>
+        </a>
+        <a class="nav-item" data-view="editor">
+          <span class="nav-item-icon">✏️</span>
+          <span>New Post</span>
+        </a>
+        <a class="nav-item" data-view="pages">
+          <span class="nav-item-icon">📄</span>
+          <span>Pages</span>
+          <span id="badge-pages-count" class="nav-badge">0</span>
+        </a>
+        <a class="nav-item" data-view="comments">
+          <span class="nav-item-icon">💬</span>
+          <span>Comments</span>
+          <span id="badge-comments-count" class="nav-badge">0</span>
+        </a>
+        <a class="nav-item" data-view="stats">
+          <span class="nav-item-icon">📊</span>
+          <span>Stats</span>
+        </a>
+        <a class="nav-item" data-view="layout">
+          <span class="nav-item-icon">🎨</span>
+          <span>Layout & Gadgets</span>
+        </a>
+        <a class="nav-item" data-view="theme">
+          <span class="nav-item-icon">🖌️</span>
+          <span>Theme & Customizer</span>
+        </a>
+        <a class="nav-item" data-view="settings">
+          <span class="nav-item-icon">⚙️</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <!-- SIDEBAR FOOTER -->
+      <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px;">
+        <a id="btn-view-public-blog" href="/techpulse" target="_blank" class="btn-view-blog" style="text-decoration: none; text-align: center;" title="Open Public Mode in new tab">
+          <span>🌐 Public Mode ↗</span>
+        </a>
+        <a id="btn-view-preview-blog" href="/preview-techpulse" target="_blank" class="btn-view-blog" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.4); color: #a5b4fc; text-decoration: none; text-align: center;" title="Open Preview Mode in new tab">
+          <span>👁️ Preview Mode ↗</span>
+        </a>
+      </div>
+    </aside>
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <!-- MAIN APP AREA -->
+    <main class="app-main">
+      <!-- TOP BAR -->
+      <header class="top-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button id="btn-toggle-mobile-sidebar" class="mobile-menu-toggle" aria-label="Toggle Sidebar Navigation">
+            <span>☰</span>
+          </button>
+
+          <div class="page-title-box">
+            <h1 id="page-heading" class="page-title">Posts</h1>
+            <span id="active-blog-pill" class="active-blog-badge">TechPulse</span>
+          </div>
+        </div>
+
+        <div class="top-actions" style="display: flex; align-items: center; gap: 8px;">
+          <div id="admin-user-box" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+            <span id="admin-user-display" style="font-size: 0.82rem; color: #a5b4fc; font-weight: 600;">👤 admin</span>
+            <button id="btn-open-change-credentials" type="button" class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;">🔑 Credentials</button>
+            <button id="btn-admin-logout" type="button" class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.75rem;">🚪 Logout</button>
+          </div>
+          <button id="btn-quick-new-post" class="btn btn-primary btn-sm">
+            <span>+ New Post</span>
+          </button>
+          <a id="btn-rss-feed" href="/feed.xml?blog_id=1" target="_blank" class="btn btn-secondary btn-sm" title="RSS XML Feed">
+            <span>📡 RSS Feed</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- CONTENT VIEWS BODY -->
+      <div class="content-body">
+        <!-- 1. POSTS VIEW -->
+        <section id="view-posts" class="app-view">
+          <div class="glass-card mb-6">
+            <div style="display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+              <div style="display: flex; gap: 12px; flex: 1; min-width: 280px;">
+                <input type="text" id="posts-search-input" placeholder="Search post title or content..." class="form-input" style="max-width: 380px;">
+                <select id="posts-status-filter" class="form-select" style="max-width: 160px;">
+                  <option value="">All Statuses</option>
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
+              <button id="btn-create-post-posts-view" class="btn btn-primary">+ Create New Post</button>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Labels</th>
+                    <th>Views</th>
+                    <th>Published</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="posts-table-body">
+                  <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading posts...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. POST EDITOR VIEW -->
+        <section id="view-editor" class="app-view" style="display: none;">
+          <input type="hidden" id="editor-post-id" value="">
+          <div class="glass-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 id="editor-mode-title" style="font-size: 1.3rem; font-weight: 700; color: white;">Create New Post</h2>
+              <div style="display: flex; gap: 10px;">
+                <button id="btn-save-draft" class="btn btn-secondary">Save as Draft</button>
+                <button id="btn-publish-post" class="btn btn-primary">🚀 Publish Post</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="editor-title-input">Post Title</label>
+              <input type="text" id="editor-title-input" class="form-input" placeholder="Enter post title here..." style="font-size: 1.1rem; font-weight: 600;">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="editor-slug-input">Permalink Slug (optional)</label>
+              <input type="text" id="editor-slug-input" class="form-input" placeholder="e.g. my-awesome-post">
+            </div>
+
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="form-label" style="margin-bottom: 0;">Post Body Content</label>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" id="toggle-wysiwyg-mode" class="btn btn-secondary btn-sm" style="background: var(--accent-color); color: white;">WYSIWYG</button>
+                  <button type="button" id="toggle-html-mode" class="btn btn-secondary btn-sm">HTML Code</button>
+                </div>
+              </div>
+
+              <!-- WYSIWYG TOOLBAR -->
+              <div id="wysiwyg-toolbar" class="editor-toolbar">
+                <button type="button" class="tool-btn" onclick="execCmd('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+                <button type="button" class="tool-btn" onclick="execCmd('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+                <button type="button" class="tool-btn" onclick="execCmd('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+                <button type="button" class="tool-btn" onclick="execCmd('strikeThrough')" title="Strikethrough"><s>S</s></button>
+                <div class="tool-divider"></div>
+                <button type="button" class="tool-btn" onclick="execCmd('formatBlock', '<h2>')" title="Heading 2">H2</button>
+                <button type="button" class="tool-btn" onclick="execCmd('formatBlock', '<h3>')" title="Heading 3">H3</button>
+                <button type="button" class="tool-btn" onclick="execCmd('formatBlock', '<p>')" title="Paragraph">P</button>
+                <button type="button" class="tool-btn" onclick="execCmd('formatBlock', '<blockquote>')" title="Blockquote">”</button>
+                <div class="tool-divider"></div>
+                <button type="button" class="tool-btn" onclick="execCmd('insertUnorderedList')" title="Bullet List">• List</button>
+                <button type="button" class="tool-btn" onclick="execCmd('insertOrderedList')" title="Numbered List">1. List</button>
+                <div class="tool-divider"></div>
+                <button type="button" class="tool-btn" onclick="promptLink()" title="Insert Link">🔗 Link</button>
+                <button type="button" class="tool-btn" onclick="promptImage()" title="Insert Image">🖼 Image</button>
+                <button type="button" class="tool-btn" onclick="execCmd('removeFormat')" title="Clear Formatting">🧹</button>
+              </div>
+
+              <!-- WYSIWYG AREA -->
+              <div id="editor-visual" class="editor-content-area" contenteditable="true"></div>
+
+              <!-- HTML TEXTAREA -->
+              <textarea id="editor-html" class="editor-html-textarea" style="display: none;" placeholder="<p>Write your raw HTML content here...</p>"></textarea>
+            </div>
+
+            <div class="responsive-grid-2col">
+              <div class="form-group">
+                <label class="form-label" for="editor-labels-input">Labels / Tags (comma separated)</label>
+                <input type="text" id="editor-labels-input" class="form-input" placeholder="e.g. Bun, WebDev, Design">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="editor-cover-input">Cover Image URL</label>
+                <input type="text" id="editor-cover-input" class="form-input" placeholder="https://images.unsplash.com/...">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. PAGES VIEW -->
+        <section id="view-pages" class="app-view" style="display: none;">
+          <div class="glass-card mb-6" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h2 style="font-size: 1.1rem; font-weight: 700; color: white;">Static Pages</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Manage standalone pages like About, Contact, or Privacy Policy with custom meta descriptions.</p>
+            </div>
+            <button id="btn-create-page" class="btn btn-primary">+ Create New Page</button>
+          </div>
+
+          <div class="glass-card">
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Page Title</th>
+                    <th>Permalink Slug</th>
+                    <th>SEO Meta Description</th>
+                    <th>Created At</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="pages-table-body">
+                  <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading pages...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. COMMENTS VIEW -->
+        <section id="view-comments" class="app-view" style="display: none;">
+          <div class="glass-card mb-6" style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <button class="btn btn-secondary btn-sm comment-tab-btn active" data-status="approved">Approved</button>
+              <button class="btn btn-secondary btn-sm comment-tab-btn" data-status="pending">Pending</button>
+              <button class="btn btn-secondary btn-sm comment-tab-btn" data-status="spam">Spam</button>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Author</th>
+                    <th>Comment</th>
+                    <th>Post</th>
+                    <th>Date</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="comments-table-body">
+                  <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading comments...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. STATS VIEW -->
+        <section id="view-stats" class="app-view" style="display: none;">
+          <!-- STAT CARDS -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">👁️</div>
+              <div>
+                <div id="stat-total-views" class="stat-value">0</div>
+                <div class="stat-label">Total Post Views</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">📝</div>
+              <div>
+                <div id="stat-total-posts" class="stat-value">0</div>
+                <div class="stat-label">Published Posts</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">💬</div>
+              <div>
+                <div id="stat-total-comments" class="stat-value">0</div>
+                <div class="stat-label">Total Reader Comments</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="responsive-grid-2col">
+            <div class="glass-card">
+              <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 16px;">🔥 Top Viewed Posts</h3>
+              <div id="top-posts-list">Loading...</div>
+            </div>
+            <div class="glass-card">
+              <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 16px;">🌐 Traffic Referral Sources</h3>
+              <div id="referrers-list">Loading...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. LAYOUT & GADGETS VIEW -->
+        <section id="view-layout" class="app-view" style="display: none;">
+          <div class="glass-card mb-6" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h2 style="font-size: 1.1rem; font-weight: 700; color: white;">Weblogger Layout & Gadget Builder</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Organize sidebars, header widgets, and footer cards.</p>
+            </div>
+            <button id="btn-add-gadget-modal" class="btn btn-primary">+ Add a Gadget</button>
+          </div>
+
+          <div class="layout-builder-grid">
+            <!-- Header Section -->
+            <div class="layout-section-box" style="grid-column: 1 / -1;">
+              <div class="layout-section-header">
+                <span class="layout-section-title">Header Banner Section</span>
+                <span class="text-xs text-slate-400">Top Header</span>
+              </div>
+              <div id="gadgets-header-zone"></div>
+            </div>
+
+            <!-- Sidebar Section -->
+            <div class="layout-section-box">
+              <div class="layout-section-header">
+                <span class="layout-section-title">Sidebar Gadgets</span>
+                <button class="btn btn-secondary btn-sm" onclick="openAddGadget('sidebar')">+ Add</button>
+              </div>
+              <div id="gadgets-sidebar-zone"></div>
+            </div>
+
+            <!-- Main Feed Zone -->
+            <div class="layout-section-box" style="background: rgba(99, 102, 241, 0.05); border-color: var(--accent-border);">
+              <div class="layout-section-header">
+                <span class="layout-section-title" style="color: #a5b4fc;">Main Blog Posts Feed</span>
+                <span style="font-size: 0.75rem; color: var(--accent-color);">Center Core</span>
+              </div>
+              <div class="p-4 text-center text-slate-400 text-sm italic border border-slate-700/50 rounded bg-slate-900/40">
+                [ Dynamic Blog Posts Feed Output ]
+              </div>
+            </div>
+
+            <!-- Footer Section -->
+            <div class="layout-section-box" style="grid-column: 1 / -1;">
+              <div class="layout-section-header">
+                <span class="layout-section-title">Footer Widgets</span>
+                <button class="btn btn-secondary btn-sm" onclick="openAddGadget('footer')">+ Add</button>
+              </div>
+              <div id="gadgets-footer-zone"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. THEME & CUSTOMIZER VIEW -->
+        <section id="view-theme" class="app-view" style="display: none;">
+          <div class="glass-card mb-6" style="margin-bottom: 24px;">
+            <h2 style="font-size: 1.1rem; font-weight: 700; color: white; margin-bottom: 6px;">Theme Templates Gallery</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Choose a Weblogger template style for your site.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+              <div class="theme-card active" data-theme="contempo">
+                <img src="https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Contempo Theme">
+                <div class="theme-info">
+                  <div class="theme-name">Contempo Dark</div>
+                  <div class="theme-desc">Modern glassmorphism with indigo & violet gradients.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="dracula">
+                <img src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Dracula Theme">
+                <div class="theme-info">
+                  <div class="theme-name">🧛 Dracula Gothic</div>
+                  <div class="theme-desc">Iconic Dracula purple & pink nocturnal theme with Fira Code.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="cyberpunk">
+                <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Cyberpunk Theme">
+                <div class="theme-info">
+                  <div class="theme-name">⚡ Cyberpunk Neon</div>
+                  <div class="theme-desc">High-contrast cyan & magenta neon grid for tech blogs.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="nord">
+                <img src="https://images.unsplash.com/photo-1517411032315-54ef2cb783bb?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Nord Theme">
+                <div class="theme-info">
+                  <div class="theme-name">❄️ Nordic Frost</div>
+                  <div class="theme-desc">Cool arctic slate & aurora teal Scandinavian palette.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="solarized">
+                <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Solarized Theme">
+                <div class="theme-info">
+                  <div class="theme-name">🌅 Solarized Amber</div>
+                  <div class="theme-desc">Warm amber & teal low-contrast theme for soft reading.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="soho">
+                <img src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Soho Theme">
+                <div class="theme-info">
+                  <div class="theme-name">🌿 Soho Slate</div>
+                  <div class="theme-desc">Emerald slate design for photo & travel blogging.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="essential">
+                <img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Essential Theme">
+                <div class="theme-info">
+                  <div class="theme-name">💻 Essential Code</div>
+                  <div class="theme-desc">Monospace code-focused layout for developer guides.</div>
+                </div>
+              </div>
+
+              <div class="theme-card" data-theme="emporium">
+                <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80" class="theme-preview-img" alt="Emporium Theme">
+                <div class="theme-info">
+                  <div class="theme-name">📰 Emporium Light</div>
+                  <div class="theme-desc">Crisp white & sky blue magazine layout for publishing.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 16px;">Customize Theme Design Tokens</h3>
+            <form id="theme-customizer-form">
+              <div class="responsive-grid-3col" style="margin-bottom: 16px;">
+                <div>
+                  <label class="form-label" for="theme-accent-color">Accent Color</label>
+                  <input type="color" id="theme-accent-color" class="form-input" style="height: 42px; padding: 4px; cursor: pointer;">
+                </div>
+                <div>
+                  <label class="form-label" for="theme-bg-color">Background Color</label>
+                  <input type="color" id="theme-bg-color" class="form-input" style="height: 42px; padding: 4px; cursor: pointer;">
+                </div>
+                <div>
+                  <label class="form-label" for="theme-font-select">Typography Font</label>
+                  <select id="theme-font-select" class="form-select">
+                    <option value="Inter">Inter (Sans-Serif)</option>
+                    <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                    <option value="Fira Code">Fira Code (Monospace)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="theme-header-image">Header Cover Image URL</label>
+                <input type="text" id="theme-header-image" class="form-input" placeholder="https://images.unsplash.com/...">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="theme-custom-css">Custom CSS Injections</label>
+                <textarea id="theme-custom-css" class="form-textarea" rows="4" style="font-family: var(--font-mono); font-size: 0.85rem;" placeholder="/* Add custom CSS rules here */"></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Save Theme Settings</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- 8. SETTINGS VIEW -->
+        <section id="view-settings" class="app-view" style="display: none;">
+          <div class="glass-card" style="margin-bottom: 24px;">
+            <h2 style="font-size: 1.1rem; font-weight: 700; color: white; margin-bottom: 16px;">Blog Settings</h2>
+            <form id="blog-settings-form">
+              <div class="responsive-grid-2col">
+                <div class="form-group">
+                  <label class="form-label" for="setting-blog-name">Blog Title</label>
+                  <input type="text" id="setting-blog-name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="setting-blog-slug">Subdomain / Slug</label>
+                  <input type="text" id="setting-blog-slug" class="form-input" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="setting-blog-desc">Blog Description</label>
+                <textarea id="setting-blog-desc" class="form-textarea" rows="3"></textarea>
+              </div>
+
+              <div class="responsive-grid-2col">
+                <div class="form-group">
+                  <label class="form-label" for="setting-author-name">Author Name</label>
+                  <input type="text" id="setting-author-name" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="setting-author-avatar">Author Avatar URL</label>
+                  <input type="text" id="setting-author-avatar" class="form-input">
+                </div>
+              </div>
+
+              <div class="responsive-grid-3col">
+                <div class="form-group">
+                  <label class="form-label" for="setting-posts-per-page">Posts Per Page</label>
+                  <select id="setting-posts-per-page" class="form-select">
+                    <option value="5">5 posts</option>
+                    <option value="10">10 posts</option>
+                    <option value="15">15 posts</option>
+                    <option value="20">20 posts</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="setting-comments-enabled">Reader Comments</label>
+                  <select id="setting-comments-enabled" class="form-select">
+                    <option value="true">Enabled (Allow comments)</option>
+                    <option value="false">Disabled (Close comments)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="setting-layout-style">Blog Feed Layout</label>
+                  <select id="setting-layout-style" class="form-select">
+                    <option value="sidebar-right">Sidebar Right</option>
+                    <option value="sidebar-left">Sidebar Left</option>
+                    <option value="full-width">Full Width Single Column</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="setting-author-bio">Author Bio</label>
+                <textarea id="setting-author-bio" class="form-textarea" rows="2"></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+          </div>
+
+          <!-- ADMIN SECURITY & CREDENTIALS CARD -->
+          <div class="glass-card" style="margin-bottom: 24px;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: white; margin-bottom: 8px;">🔐 Admin Login Credentials</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Update your admin username and password used to access the CMS panel & preview mode.</p>
+
+            <form id="form-change-credentials">
+              <div id="change-credentials-alert" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 16px;"></div>
+
+              <div class="form-group">
+                <label class="form-label" for="change-current-password">Current Password</label>
+                <input type="password" id="change-current-password" class="form-input" placeholder="Enter current password" required>
+              </div>
+
+              <div class="responsive-grid-2col">
+                <div class="form-group">
+                  <label class="form-label" for="change-new-username">New Admin Username</label>
+                  <input type="text" id="change-new-username" class="form-input" placeholder="New username" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="change-new-password">New Admin Password</label>
+                  <input type="password" id="change-new-password" class="form-input" placeholder="At least 4 characters" required>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Update Admin Credentials</button>
+            </form>
+          </div>
+
+          <div class="glass-card">
+            <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 12px;">Backup & Data Management</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Export your posts, comments, pages, and layout config as JSON or import backup files.</p>
+
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <button id="btn-export-backup" class="btn btn-secondary">📥 Export Backup (JSON)</button>
+              <button id="btn-sync-flatfile" class="btn btn-secondary">💾 Save to Flatfile Storage</button>
+              <label class="btn btn-secondary" style="cursor: pointer;">
+                📤 Import Backup (JSON)
+                <input type="file" id="file-import-backup" accept=".json" style="display: none;">
+              </label>
+              <button id="btn-restore-mock-data" class="btn btn-secondary">🔄 Restore Mock Data</button>
+              <button id="btn-danger-delete-blog" class="btn btn-danger">🗑 Delete Current Blog</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- HTML5 CUSTOM DIALOG: ALERT -->
+  <dialog id="dialog-alert" class="custom-dialog">
+    <div class="modal-header">
+      <h3 id="dialog-alert-title" class="modal-title">Notification</h3>
+      <button type="button" class="modal-close" onclick="closeModal('dialog-alert')">&times;</button>
+    </div>
+    <div id="dialog-alert-message" style="margin-bottom: 24px; font-size: 0.95rem; color: #cbd5e1; line-height: 1.6;"></div>
+    <div style="display: flex; justify-content: flex-end;">
+      <button id="dialog-alert-ok" type="button" class="btn btn-primary">OK</button>
+    </div>
+  </dialog>
+
+  <!-- HTML5 CUSTOM DIALOG: CONFIRM -->
+  <dialog id="dialog-confirm" class="custom-dialog">
+    <div class="modal-header">
+      <h3 id="dialog-confirm-title" class="modal-title">Confirm Action</h3>
+      <button type="button" class="modal-close" onclick="closeModal('dialog-confirm')">&times;</button>
+    </div>
+    <div id="dialog-confirm-message" style="margin-bottom: 24px; font-size: 0.95rem; color: #cbd5e1; line-height: 1.6;"></div>
+    <div style="display: flex; justify-content: flex-end; gap: 12px;">
+      <button id="dialog-confirm-no" type="button" class="btn btn-secondary">Cancel</button>
+      <button id="dialog-confirm-yes" type="button" class="btn btn-danger">Confirm</button>
+    </div>
+  </dialog>
+
+  <!-- HTML5 CUSTOM DIALOG: PROMPT -->
+  <dialog id="dialog-prompt" class="custom-dialog">
+    <div class="modal-header">
+      <h3 id="dialog-prompt-title" class="modal-title">Input Required</h3>
+      <button type="button" class="modal-close" onclick="closeModal('dialog-prompt')">&times;</button>
+    </div>
+    <form id="dialog-prompt-form">
+      <div id="dialog-prompt-message" style="margin-bottom: 12px; font-size: 0.95rem; color: #cbd5e1;"></div>
+      <div class="form-group" style="margin-bottom: 24px;">
+        <input type="text" id="dialog-prompt-input" class="form-input" required autofocus>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button id="dialog-prompt-cancel" type="button" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HTML5 DIALOG: PAGE EDITOR -->
+  <dialog id="modal-page-editor" class="custom-dialog" style="max-width: 720px;">
+    <div class="modal-header">
+      <h3 id="page-editor-modal-title" class="modal-title">Edit Static Page</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modal-page-editor')">&times;</button>
+    </div>
+    <form id="form-page-editor">
+      <input type="hidden" id="page-editor-id" value="">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label class="form-label" for="page-editor-title">Page Title</label>
+          <input type="text" id="page-editor-title" class="form-input" placeholder="e.g. About the Author" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="page-editor-slug">Permalink Slug</label>
+          <input type="text" id="page-editor-slug" class="form-input" placeholder="e.g. about">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="page-editor-content">Page Body Content (HTML)</label>
+        <textarea id="page-editor-content" class="form-textarea" rows="6" placeholder="<p>Page HTML content goes here...</p>" required></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="page-editor-meta-desc">
+          Custom Meta Description 
+          <span style="font-weight: normal; font-size: 0.78rem; color: #a5b4fc;">(Optional — auto-generated from content if left blank)</span>
+        </label>
+        <textarea id="page-editor-meta-desc" class="form-textarea" rows="2" placeholder="Write a custom SEO search description for this page..."></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-page-editor')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Page</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HTML5 DIALOG: CREATE BLOG -->
+  <dialog id="modal-create-blog" class="custom-dialog">
+    <div class="modal-header">
+      <h3 class="modal-title">Create New Blog</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modal-create-blog')">&times;</button>
+    </div>
+    <form id="form-create-blog">
+      <div class="form-group">
+        <label class="form-label" for="new-blog-name">Blog Title</label>
+        <input type="text" id="new-blog-name" class="form-input" placeholder="e.g. Travel Chronicles" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="new-blog-slug">URL Slug</label>
+        <input type="text" id="new-blog-slug" class="form-input" placeholder="e.g. travel-chronicles">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="new-blog-desc">Description</label>
+        <textarea id="new-blog-desc" class="form-textarea" rows="2" placeholder="Brief summary of your blog..."></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-create-blog')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Blog</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HTML5 DIALOG: ADD/EDIT GADGET -->
+  <dialog id="modal-gadget" class="custom-dialog">
+    <div class="modal-header">
+      <h3 class="modal-title" id="gadget-modal-title">Add Gadget Widget</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modal-gadget')">&times;</button>
+    </div>
+    <form id="form-gadget">
+      <input type="hidden" id="gadget-edit-id" value="">
+      <input type="hidden" id="gadget-target-section" value="sidebar">
+      <div class="form-group">
+        <label class="form-label" for="gadget-section-select">Layout Section</label>
+        <select id="gadget-section-select" class="form-select">
+          <option value="sidebar">Sidebar Gadgets</option>
+          <option value="header">Header Banner Section</option>
+          <option value="footer">Footer Widgets</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="gadget-type-select">Gadget Type</label>
+        <select id="gadget-type-select" class="form-select">
+          <option value="profile">Profile (About Author)</option>
+          <option value="search">Blog Search Bar</option>
+          <option value="popular_posts">Popular Posts List</option>
+          <option value="labels">Labels Cloud</option>
+          <option value="archive">Blog Archive Tree</option>
+          <option value="html">Custom HTML / JS Code</option>
+          <option value="text">Text / Announcement Box</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="gadget-title-input">Gadget Title</label>
+        <input type="text" id="gadget-title-input" class="form-input" required placeholder="e.g., About Me, Recent Posts">
+      </div>
+      <div class="form-group" id="gadget-html-content-group">
+        <label class="form-label" for="gadget-content-input">HTML / Text Content</label>
+        <textarea id="gadget-content-input" class="form-textarea" rows="4" placeholder="Enter custom HTML, text announcement, or custom configuration..."></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-gadget')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Gadget</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HTML5 DIALOG: PUBLIC BLOG READER OVERLAY -->
+  <dialog id="modal-public-blog" class="custom-dialog custom-dialog-fullscreen">
+    <div style="height: 100vh; display: flex; flex-direction: column;">
+      <div id="public-blog-preview-header" style="background: #0f172a; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-weight: 700; color: white;">🌐 Public Blog Reader Preview</span>
+          <span id="public-blog-preview-title" class="active-blog-badge">TechPulse</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('modal-public-blog')">✕ Exit Preview</button>
+      </div>
+      <div id="public-blog-container" class="public-blog-wrapper" style="flex: 1; overflow-y: auto;">
+        <!-- Dynamic Public Reader rendering -->
+      </div>
+    </div>
+  </dialog>
+
+  <!-- HTML5 DIALOG: ADMIN LOGIN -->
+  <dialog id="modal-admin-login" class="custom-dialog" style="max-width: 420px; text-align: left;">
+    <div class="modal-header" style="justify-content: center; text-align: center;">
+      <div>
+        <div style="font-size: 2rem; margin-bottom: 4px;">🔐</div>
+        <h3 class="modal-title" style="font-size: 1.3rem;">Admin CMS Login</h3>
+        <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;" id="login-modal-subtitle">Authentication required to access admin panel & preview mode.</p>
+      </div>
+    </div>
+    <form id="form-admin-login">
+      <div id="login-error-alert" style="display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); color: #f43f5e; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 16px;"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="login-username">Username</label>
+        <input type="text" id="login-username" class="form-input" placeholder="admin" value="admin" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="login-password">Password</label>
+        <input type="password" id="login-password" class="form-input" placeholder="••••••••" value="admin123" required>
+      </div>
+      <div style="margin-bottom: 20px; font-size: 0.8rem; color: #9ca3af; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px;">
+        💡 Default Credentials: <code>admin</code> / <code>admin123</code>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px;">Login to Admin Panel</button>
+    </form>
+  </dialog>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

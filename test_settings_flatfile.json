@@ -1,0 +1,35 @@
+{
+  "updated_at": "2026-08-06T10:20:51.958Z",
+  "blogs": {
+    "1": {
+      "blog_id": 1,
+      "slug": "techpulse",
+      "name": "Updated TechPulse Blog",
+      "theme_id": "contempo",
+      "custom_css": "",
+      "settings": {
+        "posts_per_page": 15,
+        "comments_enabled": false
+      },
+      "updated_at": "2026-08-06T10:20:51.958Z"
+    },
+    "2": {
+      "blog_id": 2,
+      "slug": "wanderlust",
+      "name": "Nomad Wanderlust",
+      "theme_id": "soho",
+      "custom_css": "",
+      "settings": {
+        "posts_per_page": 6,
+        "comments_enabled": true,
+        "dark_mode": false,
+        "header_image": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1200&q=80",
+        "accent_color": "#059669",
+        "background_color": "#f8fafc",
+        "font_family": "Plus Jakarta Sans",
+        "layout_style": "sidebar-right"
+      },
+      "updated_at": "2026-08-06T10:20:51.958Z"
+    }
+  }
+}
