@@ -37,6 +37,8 @@ let currentBlogs = [];
 let currentBlogData = null;
 let currentView = "posts";
 let activeCommentStatus = "approved";
+let postAutoSaveTimer = null;
+let editorOriginalStatus = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -56,8 +58,6 @@ async function initApp() {
   });
   const visualEd = document.getElementById("editor-visual");
   if (visualEd) visualEd.addEventListener("input", autoSavePostDraft);
-
-  restorePostDraft();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -646,33 +646,6 @@ async function switchBlog(blogId, updateUrl = false) {
   const blogSelector = document.getElementById("blog-selector");
   if (blogSelector) blogSelector.value = blogId;
 
-  // Pre-fill form fields from localStorage cache immediately while fetching server data
-  try {
-    const cachedSettingsStr = safeLocalStorageGet(`weblogger_blog_settings_${blogId}`) || safeLocalStorageGet("weblogger_settings");
-    if (cachedSettingsStr) {
-      const s = JSON.parse(cachedSettingsStr);
-      const perPage = document.getElementById("setting-posts-per-page");
-      if (perPage && s.posts_per_page) perPage.value = String(s.posts_per_page);
-
-      const commentsEnabled = document.getElementById("setting-comments-enabled");
-      if (commentsEnabled && s.comments_enabled !== undefined) {
-        commentsEnabled.value = s.comments_enabled !== false ? "true" : "false";
-      }
-
-      const layoutStyle = document.getElementById("setting-layout-style");
-      if (layoutStyle && s.layout_style) layoutStyle.value = s.layout_style;
-
-      const setVal = (id, val) => {
-        const el = document.getElementById(id);
-        if (el && val) el.value = val;
-      };
-      setVal("theme-accent-color", s.accent_color);
-      setVal("theme-bg-color", s.background_color);
-      setVal("theme-font-select", s.font_family);
-      setVal("theme-header-image", s.header_image);
-    }
-  } catch (e) {}
-
   // Fetch current blog metadata
   try {
     const res = await fetch(`/api/blogs/${blogId}`);
@@ -716,10 +689,6 @@ async function switchBlog(blogId, updateUrl = false) {
     // Parse settings JSON for theme customizer and settings form
     let settings = {};
     try { settings = JSON.parse(currentBlogData.settings_json || "{}"); } catch (e) {}
-
-    // Store loaded settings into localStorage
-    safeLocalStorageSet("weblogger_settings", JSON.stringify(settings));
-    safeLocalStorageSet(`weblogger_blog_settings_${blogId}`, JSON.stringify(settings));
 
     const perPage = document.getElementById("setting-posts-per-page");
     if (perPage) perPage.value = String(settings.posts_per_page || 5);
@@ -900,6 +869,7 @@ async function editPost(postId) {
     document.getElementById("editor-html").value = p.content;
     document.getElementById("editor-labels-input").value = p.labels || "";
     document.getElementById("editor-cover-input").value = p.cover_image || "";
+    editorOriginalStatus = p.status || null;
 
     switchView("editor");
   } catch (err) {
@@ -916,38 +886,77 @@ function resetPostEditor() {
   document.getElementById("editor-html").value = "";
   document.getElementById("editor-labels-input").value = "";
   document.getElementById("editor-cover-input").value = "";
-  safeLocalStorageRemove("weblogger_post_draft");
+  editorOriginalStatus = null;
+}
+
+function schedulePostAutoSave() {
+  clearTimeout(postAutoSaveTimer);
+  postAutoSaveTimer = setTimeout(() => {
+    persistPostDraft();
+  }, 800);
 }
 
 function autoSavePostDraft() {
-  const title = document.getElementById("editor-title-input").value;
-  const slug = document.getElementById("editor-slug-input").value;
+  schedulePostAutoSave();
+}
+
+async function persistPostDraft() {
+  const title = document.getElementById("editor-title-input").value.trim();
+  const slug = document.getElementById("editor-slug-input").value.trim();
   const isHtmlMode = document.getElementById("editor-html").style.display !== "none";
   const content = isHtmlMode ? document.getElementById("editor-html").value : document.getElementById("editor-visual").innerHTML;
   const labels = document.getElementById("editor-labels-input").value;
   const cover_image = document.getElementById("editor-cover-input").value;
   const id = document.getElementById("editor-post-id").value;
 
-  if (title || content) {
-    safeLocalStorageSet("weblogger_post_draft", JSON.stringify({ id, title, slug, content, labels, cover_image }));
+  if (!title && !content.trim()) return;
+
+  // Do not auto-save over a published post's live content; keep manual publish flow.
+  if (id && editorOriginalStatus === "published") return;
+
+  const status = id ? (editorOriginalStatus || "draft") : "draft";
+  const payload = {
+    blog_id: currentBlogId,
+    title: title || "Untitled Draft",
+    slug,
+    content,
+    status,
+    labels,
+    cover_image,
+    author_name: currentBlogData?.author_name || "Admin Author"
+  };
+
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`/api/posts/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (res.ok) {
+      const saved = await res.json();
+      if (!id && saved?.id) {
+        document.getElementById("editor-post-id").value = saved.id;
+        editorOriginalStatus = saved.status || "draft";
+        document.getElementById("editor-mode-title").textContent = "Edit Post";
+      }
+    }
+  } catch (err) {
+    // Silently ignore auto-save network errors
   }
 }
 
 function restorePostDraft() {
-  const draftStr = safeLocalStorageGet("weblogger_post_draft");
-  if (!draftStr) return;
-  try {
-    const d = JSON.parse(draftStr);
-    if (d.title || d.content) {
-      document.getElementById("editor-post-id").value = d.id || "";
-      document.getElementById("editor-title-input").value = d.title || "";
-      document.getElementById("editor-slug-input").value = d.slug || "";
-      document.getElementById("editor-visual").innerHTML = d.content || "";
-      document.getElementById("editor-html").value = d.content || "";
-      document.getElementById("editor-labels-input").value = d.labels || "";
-      document.getElementById("editor-cover-input").value = d.cover_image || "";
-    }
-  } catch(e){}
+  // Drafts are now persisted in the database; nothing to restore from localStorage.
 }
 
 async function savePost(targetStatus) {
@@ -993,7 +1002,6 @@ async function savePost(targetStatus) {
 
     if (res.ok) {
       showToast(id ? "Post updated!" : (targetStatus === 'published' ? "Post published! 🚀" : "Draft saved!"));
-      safeLocalStorageRemove("weblogger_post_draft");
       resetPostEditor();
       switchView("posts");
     } else {
@@ -1694,8 +1702,7 @@ async function updateBlogTheme(themeId) {
     if (res.ok) {
       const updatedBlog = await res.json();
       currentBlogData = updatedBlog;
-      safeLocalStorageSet("weblogger_settings", JSON.stringify(updatedSettings));
-      safeLocalStorageSet(`weblogger_blog_settings_${currentBlogId}`, JSON.stringify(updatedSettings));
+      // settings persisted to database via API
       showToast(`Theme updated to ${preset.name}! ✨`);
       await switchBlog(currentBlogId);
     } else {
@@ -1737,8 +1744,7 @@ async function saveThemeSettings(e) {
     if (res.ok) {
       const updatedBlog = await res.json();
       currentBlogData = updatedBlog;
-      safeLocalStorageSet("weblogger_settings", JSON.stringify(newSettings));
-      safeLocalStorageSet(`weblogger_blog_settings_${currentBlogId}`, JSON.stringify(newSettings));
+      // settings persisted to database via API
       showToast("Theme customizer settings saved!");
       await switchBlog(currentBlogId);
     } else {
@@ -1793,8 +1799,7 @@ async function saveBlogSettings(e) {
     if (res.ok) {
       const updatedBlog = await res.json();
       currentBlogData = updatedBlog;
-      safeLocalStorageSet("weblogger_settings", JSON.stringify(updatedSettings));
-      safeLocalStorageSet(`weblogger_blog_settings_${updatedBlog.id}`, JSON.stringify(updatedSettings));
+      // settings persisted to database via API
       showToast("Blog settings updated successfully! ⚙️");
       await loadBlogsList();
       await switchBlog(updatedBlog.id, false);
