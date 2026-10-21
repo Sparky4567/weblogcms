@@ -1381,6 +1381,17 @@ const THEME_PRESETS = {
     title_color: "#0f172a",
     content_color: "#334155",
     header_image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80"
+  },
+  terminal: {
+    name: "Terminal Green",
+    accent_color: "#00ff41",
+    background_color: "#0a0f0a",
+    font_family: "Fira Code",
+    card_bg: "#0f1a0f",
+    card_border: "rgba(0, 255, 65, 0.3)",
+    title_color: "#00ff41",
+    content_color: "#a7f3a7",
+    header_image: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80"
   }
 };
 

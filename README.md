@@ -20,6 +20,7 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
   - **Pages**: Static pages with custom URL slugs and SEO meta descriptions.
 - 💬 **Comment Moderation Workflow**: Automated and manual comment moderation statuses (`approved`, `pending`, `spam`, `trash`).
 - 🧩 **Dynamic Gadgets & Layout Manager**: Modular layout system with customizable widgets (HTML, Text, Header, Pages, Archive, Labels, Profile, Stats, Search) and position ordering.
+- 🎨 **Theme Gallery**: Nine built-in templates (Contempo, Dracula, Cyberpunk, Nord, Solarized, Soho, Essential, Emporium, Terminal) plus customizable design tokens.
 - 📊 **Built-in Analytics**: Lightweight visitor analytics tracking referral URLs, user agents, IP addresses, and view counts.
 - 📡 **RSS & Atom Feed Generator**: Built-in RSS feeds (`/feed.xml`, `/rss`, `/:slug/feed.xml`) for post distribution.
 - 💾 **Dual Storage Architecture**: Primary SQLite database storage (`weblog.db`) with support for flatfile JSON file syncing ([`flatfile.ts`](flatfile.ts)).
