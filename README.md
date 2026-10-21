@@ -29,6 +29,8 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
 - 📱 **Single-Page Application & PWA Ready**: Interactive frontend app in [`public/app.js`](public/app.js) with service worker support ([`public/sw.js`](public/sw.js)).
 - 📱 **Responsive, Mobile-First UI**: Adaptive layouts, mobile drawer navigation, touch-friendly controls, and fluid typography that fit phones, tablets, and large screens.
 - ♿ **Accessibility**: Keyboard focus outlines, reduced-motion support, and semantic HTML structure.
+- 🏷️ **Clickable Tags**: Each tag on a published post is clickable, opening a filtered list of posts that share the tag.
+- 📢 **Advertisements**: Writers can create sponsored ad cards (title, description, optional image, link, placement, active status) managed from the admin “Advertisements” view and displayed on posts.
 
 ---
 
@@ -141,7 +143,7 @@ The test suite covers:
 - `DELETE /api/blogs/:id` - Delete weblog and related posts
 
 ### ✍️ Posts (`/api/posts`)
-- `GET /api/posts?blog_id=:id&status=:status` - List posts with optional filters
+- `GET /api/posts?blog_id=:id&status=:status&search=:q&label=:tag&tag=:tag` - List posts with optional filters
 - `POST /api/posts` - Create post
 - `GET /api/posts/:id` - Get post by ID
 - `PUT /api/posts/:id` - Update post title, content, status, tags, etc.
@@ -153,6 +155,13 @@ The test suite covers:
 - `GET /api/pages/:id` - Get page by ID
 - `PUT /api/pages/:id` - Update static page
 - `DELETE /api/pages/:id` - Delete static page
+
+### 📢 Advertisements (`/api/advertisements` or `/api/ads`)
+- `GET /api/advertisements?blog_id=:id` - List advertisements for a blog
+- `POST /api/advertisements` - Create an advertisement
+- `GET /api/advertisements/:id` - Get advertisement by ID
+- `PUT /api/advertisements/:id` - Update advertisement
+- `DELETE /api/advertisements/:id` - Delete advertisement
 
 ### 💬 Comments (`/api/comments`)
 - `GET /api/comments?post_id=:id&status=:status` - List comments

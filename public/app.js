@@ -182,6 +182,7 @@ async function handleLocationRoute(updateHistory = true) {
 
   if (targetBlog && (segments[0] === targetBlog.slug || segments[0] === `preview-${targetBlog.slug}`)) {
     let singlePostId = null;
+    let tagFilter = null;
 
     if (segments.length >= 3 && segments[1] === "post") {
       const postSlug = segments[2];
@@ -191,9 +192,21 @@ async function handleLocationRoute(updateHistory = true) {
         const post = posts.find(p => p.slug === postSlug);
         if (post) singlePostId = post.id;
       } catch (e) {}
+    } else if (segments.length >= 3 && ["tag", "tags", "label", "labels"].includes(segments[1])) {
+      try {
+        tagFilter = decodeURIComponent(segments.slice(2).join("/"));
+      } catch (e) {
+        tagFilter = segments.slice(2).join("/");
+      }
+    } else {
+      // Support tag/label filtering via query string as well (e.g. ?tag=foo)
+      try {
+        const qs = new URL(window.location.href).searchParams;
+        tagFilter = qs.get("tag") || qs.get("label");
+      } catch (e) {}
     }
 
-    openPublicBlogReader(isPreview, singlePostId);
+    openPublicBlogReader(isPreview, singlePostId, tagFilter);
   } else {
     closeModal("modal-public-blog");
   }
@@ -309,6 +322,10 @@ function setupEventListeners() {
   // Pages
   document.getElementById("btn-create-page").addEventListener("click", openCreatePageModal);
   document.getElementById("form-page-editor").addEventListener("submit", savePage);
+
+  // Advertisements
+  document.getElementById("btn-create-ad").addEventListener("click", openCreateAdModal);
+  document.getElementById("form-ad").addEventListener("submit", saveAd);
 
   // Comments Moderation Tabs
   document.querySelectorAll(".comment-tab-btn").forEach(btn => {
@@ -779,6 +796,7 @@ function switchView(viewName, updateUrl = true) {
     posts: "Posts",
     editor: "New Post Editor",
     pages: "Static Pages",
+    ads: "Advertisements",
     comments: "Comments Moderation",
     stats: "Analytics & Stats",
     layout: "Blog Layout & Gadgets",
@@ -793,6 +811,7 @@ function switchView(viewName, updateUrl = true) {
 function refreshCurrentView() {
   if (currentView === "posts") loadPosts();
   else if (currentView === "pages") loadPages();
+  else if (currentView === "ads") loadAds();
   else if (currentView === "comments") loadComments();
   else if (currentView === "stats") loadStats();
   else if (currentView === "layout") loadGadgets();
@@ -1048,6 +1067,135 @@ async function loadPages() {
     `).join('');
   } catch (err) {
     showToast("Error loading pages", true);
+  }
+}
+
+async function loadAds() {
+  try {
+    const res = await fetch(`/api/advertisements?blog_id=${currentBlogId}`);
+    const ads = await res.json();
+    const tbody = document.getElementById("ads-table-body");
+
+    if (!Array.isArray(ads) || ads.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No advertisements created yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = ads.map(a => `
+      <tr>
+        <td style="font-weight: 700; color: white;">${escapeHtml(a.title)}</td>
+        <td style="max-width: 260px; font-size: 0.8rem; color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(a.description || '')}</td>
+        <td>${a.image_url ? `<img src="${a.image_url}" style="width: 48px; height: 32px; object-fit: cover; border-radius: 4px;">` : '<span class="text-slate-500 text-xs">—</span>'}</td>
+        <td style="font-size: 0.8rem;"><a href="${a.link_url}" target="_blank" style="color: var(--accent-color);">${escapeHtml(a.link_url || '—')}</a></td>
+        <td style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(a.placement || 'both')}</td>
+        <td>${a.is_active ? '<span class="status-badge badge-published">Active</span>' : '<span class="status-badge badge-draft">Inactive</span>'}</td>
+        <td style="text-align: right;">
+          <div style="display: flex; gap: 6px; justify-content: flex-end;">
+            <button class="btn btn-secondary btn-sm" onclick="editAd(${a.id})">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAd(${a.id})">🗑 Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    showToast("Error loading advertisements", true);
+  }
+}
+
+function openCreateAdModal() {
+  document.getElementById("ad-edit-id").value = "";
+  document.getElementById("ad-modal-title").textContent = "Create Advertisement";
+  document.getElementById("ad-title-input").value = "";
+  document.getElementById("ad-description-input").value = "";
+  document.getElementById("ad-image-input").value = "";
+  document.getElementById("ad-link-input").value = "";
+  document.getElementById("ad-placement-select").value = "both";
+  document.getElementById("ad-active-select").value = "1";
+  openModal("modal-ad");
+}
+
+async function editAd(id) {
+  try {
+    const res = await fetch(`/api/advertisements/${id}`);
+    const a = await res.json();
+
+    document.getElementById("ad-edit-id").value = a.id;
+    document.getElementById("ad-modal-title").textContent = "Edit Advertisement";
+    document.getElementById("ad-title-input").value = a.title || "";
+    document.getElementById("ad-description-input").value = a.description || "";
+    document.getElementById("ad-image-input").value = a.image_url || "";
+    document.getElementById("ad-link-input").value = a.link_url || "";
+    document.getElementById("ad-placement-select").value = a.placement || "both";
+    document.getElementById("ad-active-select").value = String(a.is_active ? 1 : 0);
+
+    openModal("modal-ad");
+  } catch (err) {
+    showToast("Failed to load ad data", true);
+  }
+}
+
+async function saveAd(e) {
+  e.preventDefault();
+  const id = document.getElementById("ad-edit-id").value;
+  const title = document.getElementById("ad-title-input").value.trim();
+  const description = document.getElementById("ad-description-input").value.trim();
+  const image_url = document.getElementById("ad-image-input").value.trim();
+  const link_url = document.getElementById("ad-link-input").value.trim();
+  const placement = document.getElementById("ad-placement-select").value;
+  const is_active = document.getElementById("ad-active-select").value === "1";
+
+  if (!title) {
+    showToast("Ad title is required", true);
+    return;
+  }
+
+  const payload = {
+    blog_id: currentBlogId,
+    title,
+    description,
+    image_url,
+    link_url,
+    placement,
+    is_active
+  };
+
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`/api/advertisements/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch("/api/advertisements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (res.ok) {
+      showToast(id ? "Ad updated!" : "Ad created!");
+      closeModal("modal-ad");
+      loadAds();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || "Failed to save ad", true);
+    }
+  } catch (err) {
+    showToast("Failed to save ad", true);
+  }
+}
+
+async function deleteAd(id) {
+  if (!confirm("Delete this advertisement?")) return;
+  try {
+    await fetch(`/api/advertisements/${id}`, { method: "DELETE" });
+    showToast("Ad deleted");
+    loadAds();
+  } catch (err) {
+    showToast("Failed to delete ad", true);
   }
 }
 
@@ -1774,7 +1922,7 @@ async function deleteCurrentBlog() {
 // ----------------------------------------------------
 // 8. PUBLIC BLOG READER INTERACTIVE PREVIEW
 // ----------------------------------------------------
-async function openPublicBlogReader(isPreview = false, singlePostId = null) {
+async function openPublicBlogReader(isPreview = false, singlePostId = null, tagFilter = null) {
   openModal("modal-public-blog");
   const previewHeader = document.getElementById("public-blog-preview-header");
   if (previewHeader) {
@@ -1784,10 +1932,10 @@ async function openPublicBlogReader(isPreview = false, singlePostId = null) {
     const titleEl = document.getElementById("public-blog-preview-title");
     if (titleEl) titleEl.textContent = currentBlogData.name;
   }
-  await renderPublicBlogView(singlePostId, isPreview);
+  await renderPublicBlogView(singlePostId, isPreview, tagFilter);
 }
 
-async function renderPublicBlogView(singlePostId = null, isPreview = false) {
+async function renderPublicBlogView(singlePostId = null, isPreview = false, tagFilter = null) {
   const container = document.getElementById("public-blog-container");
   container.innerHTML = `<div style="text-align:center; padding: 60px; color: var(--text-muted);">Loading public blog...</div>`;
 
@@ -1820,6 +1968,38 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
   // Fetch posts and gadgets
   const postsRes = await fetch(`/api/posts?blog_id=${currentBlogId}&status=published`);
   const posts = await postsRes.json();
+
+  let ads = [];
+  try {
+    const adsRes = await fetch(`/api/advertisements?blog_id=${currentBlogId}`);
+    ads = await adsRes.json();
+  } catch (e) {}
+  const activeAds = Array.isArray(ads) ? ads.filter(a => a.is_active == 1 || a.is_active === true) : [];
+
+  function renderAdCard(ad) {
+    const imageHtml = ad.image_url ? `<img src="${ad.image_url}" alt="${escapeAttr(ad.title)}" style="width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">` : '';
+    const linkHtml = ad.link_url ? `<a href="${ad.link_url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="text-decoration: none;">Visit Website →</a>` : '';
+    return `
+      <aside class="pub-ad-card" style="background: rgba(99, 102, 241, 0.08); border: 1px dashed var(--pub-accent, #6366f1); border-radius: 12px; padding: 16px; margin: 18px 0; text-align: center;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px;">Sponsored</div>
+        ${imageHtml}
+        <div style="font-weight: 700; color: var(--pub-title-color, #fff); font-size: 1rem; margin-bottom: 4px;">${escapeHtml(ad.title)}</div>
+        ${ad.description ? `<div style="font-size: 0.85rem; color: var(--pub-content-color, #cbd5e1); margin-bottom: 10px;">${escapeHtml(ad.description)}</div>` : ''}
+        ${linkHtml}
+      </aside>
+    `;
+  }
+  function topAdsHtml() {
+    return activeAds.filter(a => a.placement === 'top' || a.placement === 'both').map(renderAdCard).join('');
+  }
+  function bottomAdsHtml() {
+    return activeAds.filter(a => a.placement === 'bottom' || a.placement === 'both').map(renderAdCard).join('');
+  }
+
+  const normalizedTag = tagFilter ? String(tagFilter).trim() : null;
+  const filteredPosts = normalizedTag
+    ? posts.filter(p => (p.labels || '').split(',').map(x => x.trim().toLowerCase()).includes(normalizedTag.toLowerCase()))
+    : posts;
 
   const gadgetsRes = await fetch(`/api/gadgets?blog_id=${currentBlogId}`);
   const gadgets = await gadgetsRes.json();
@@ -1873,7 +2053,15 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
             <span>• ${new Date(post.published_at).toLocaleDateString()}</span>
             <span>• 👁️ ${post.views || 0} views</span>
           </div>
+          ${topAdsHtml()}
           <div class="pub-post-content">${post.content}</div>
+          ${bottomAdsHtml()}
+          ${post.labels ? `<div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"><span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Tags:</span>${post.labels.split(',').map(l => {
+            const t = l.trim();
+            if (!t) return '';
+            const url = `${pathPrefix}/tag/${encodeURIComponent(t)}`;
+            return `<a href="${url}" onclick="history.pushState({}, '', this.getAttribute('href')); handleLocationRoute(false); return false;" class="tag-chip" data-tag="${escapeAttr(t)}" style="text-decoration: none; cursor: pointer;">${escapeHtml(t)}</a>`;
+          }).join('')}</div>` : ''}
         </div>
       </article>
 
@@ -1906,15 +2094,26 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
       </section>
     `;
   } else {
+    // Tag filter header
+    if (normalizedTag) {
+      html += `
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <h2 style="font-size: 1.3rem; font-weight: 700; color: white; margin: 0;">Posts tagged: ${escapeHtml(normalizedTag)}</h2>
+          <a href="${pathPrefix}" onclick="history.pushState({}, '', '${pathPrefix}'); handleLocationRoute(false); return false;" class="btn btn-secondary btn-sm" style="text-decoration: none;">← All posts</a>
+        </div>
+      `;
+    }
+
     // List of Posts
-    if (posts.length === 0) {
-      html += `<p style="color: var(--text-muted);">No published posts available.</p>`;
+    if (filteredPosts.length === 0) {
+      html += `<p style="color: var(--text-muted);">${normalizedTag ? `No published posts found with tag "${escapeHtml(normalizedTag)}".` : 'No published posts available.'}</p>`;
     } else {
-      posts.forEach(p => {
+      filteredPosts.forEach(p => {
         html += `
           <article class="pub-post-card">
             ${p.cover_image ? `<img src="${p.cover_image}" class="pub-post-cover">` : ''}
             <div class="pub-post-body">
+              ${topAdsHtml()}
               <h2 class="pub-post-title">
                 <a href="${pathPrefix}/post/${p.slug}" onclick="history.pushState({}, '', '${pathPrefix}/post/${p.slug}'); handleLocationRoute(false); return false;" style="color: white; text-decoration: none;">${escapeHtml(p.title)}</a>
               </h2>
@@ -1924,6 +2123,13 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
                 <span>• 💬 ${p.comment_count || 0} comments</span>
               </div>
               <div class="pub-post-content">${escapeHtml(p.excerpt || '')}</div>
+              ${bottomAdsHtml()}
+              ${p.labels ? `<div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;">${p.labels.split(',').map(l => {
+                const t = l.trim();
+                if (!t) return '';
+                const url = `${pathPrefix}/tag/${encodeURIComponent(t)}`;
+                return `<a href="${url}" onclick="history.pushState({}, '', this.getAttribute('href')); handleLocationRoute(false); return false;" class="tag-chip" data-tag="${escapeAttr(t)}" style="text-decoration: none; cursor: pointer;">${escapeHtml(t)}</a>`;
+              }).join('')}</div>` : ''}
               <button class="btn btn-secondary btn-sm" style="margin-top: 16px;" onclick="history.pushState({}, '', '${pathPrefix}/post/${p.slug}'); handleLocationRoute(false);">Read Full Story →</button>
             </div>
           </article>
@@ -1965,7 +2171,12 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
     } else if (g.type === 'labels') {
       const allLabels = new Set();
       posts.forEach(p => { if (p.labels) p.labels.split(',').forEach(l => allLabels.add(l.trim())); });
-      gadgetBody = Array.from(allLabels).map(l => `<span class="tag-chip">${escapeHtml(l)}</span>`).join('');
+      gadgetBody = Array.from(allLabels).map(l => {
+        const t = String(l).trim();
+        if (!t) return '';
+        const url = `${pathPrefix}/tag/${encodeURIComponent(t)}`;
+        return `<a href="${url}" onclick="history.pushState({}, '', this.getAttribute('href')); handleLocationRoute(false); return false;" class="tag-chip" data-tag="${escapeAttr(t)}" style="text-decoration: none; cursor: pointer;">${escapeHtml(t)}</a>`;
+      }).join('');
     } else if (g.type === 'archive') {
       gadgetBody = `
         <ul style="list-style: none; padding-left: 0; font-size: 0.85rem; color: #cbd5e1;">
@@ -2149,6 +2360,10 @@ function showToast(message, isError = false) {
 
 function escapeHtml(str) {
   return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function escapeAttr(str) {
+  return String(str || '').replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function debounce(func, wait) {

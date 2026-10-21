@@ -47,6 +47,10 @@
           <span>Pages</span>
           <span id="badge-pages-count" class="nav-badge">0</span>
         </a>
+        <a class="nav-item" data-view="ads">
+          <span class="nav-item-icon">📢</span>
+          <span>Advertisements</span>
+        </a>
         <a class="nav-item" data-view="comments">
           <span class="nav-item-icon">💬</span>
           <span>Comments</span>
@@ -246,6 +250,37 @@
                 </thead>
                 <tbody id="pages-table-body">
                   <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading pages...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3b. ADVERTISEMENTS VIEW -->
+        <section id="view-ads" class="app-view" style="display: none;">
+          <div class="glass-card mb-6" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h2 style="font-size: 1.1rem; font-weight: 700; color: white;">Advertisements</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Create and manage sponsored ads displayed on posts.</p>
+            </div>
+            <button id="btn-create-ad" class="btn btn-primary">+ Create Ad</button>
+          </div>
+          <div class="glass-card">
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Image</th>
+                    <th>Link</th>
+                    <th>Placement</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="ads-table-body">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading ads...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -838,6 +873,54 @@
         💡 Default Credentials: <code>admin</code> / <code>admin123</code>
       </div>
       <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px;">Login to Admin Panel</button>
+    </form>
+  </dialog>
+
+  <!-- HTML5 DIALOG: AD EDITOR -->
+  <dialog id="modal-ad" class="custom-dialog" style="max-width: 640px;">
+    <div class="modal-header">
+      <h3 id="ad-modal-title" class="modal-title">Create Advertisement</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modal-ad')">&times;</button>
+    </div>
+    <form id="form-ad">
+      <input type="hidden" id="ad-edit-id" value="">
+      <div class="form-group">
+        <label class="form-label" for="ad-title-input">Ad Title</label>
+        <input type="text" id="ad-title-input" class="form-input" placeholder="e.g. Sponsored Product" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ad-description-input">Description</label>
+        <textarea id="ad-description-input" class="form-textarea" rows="3" placeholder="Short promotional description..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ad-image-input">Image URL (optional)</label>
+        <input type="text" id="ad-image-input" class="form-input" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ad-link-input">Website Link</label>
+        <input type="text" id="ad-link-input" class="form-input" placeholder="https://example.com">
+      </div>
+      <div class="responsive-grid-2col">
+        <div class="form-group">
+          <label class="form-label" for="ad-placement-select">Placement</label>
+          <select id="ad-placement-select" class="form-select">
+            <option value="both">Top & Bottom</option>
+            <option value="top">Top only</option>
+            <option value="bottom">Bottom only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ad-active-select">Status</label>
+          <select id="ad-active-select" class="form-select">
+            <option value="1">Active</option>
+            <option value="0">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-ad')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Ad</button>
+      </div>
     </form>
   </dialog>
 

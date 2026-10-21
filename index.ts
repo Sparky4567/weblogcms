@@ -479,6 +479,7 @@ const server = Bun.serve({
         const status = url.searchParams.get("status");
         const search = url.searchParams.get("search");
         const label = url.searchParams.get("label");
+        const tag = url.searchParams.get("tag");
 
         let query = "SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count FROM posts p WHERE p.blog_id = ?";
         const params: any[] = [blog_id];
@@ -491,9 +492,9 @@ const server = Bun.serve({
           query += " AND (p.title LIKE ? OR p.content LIKE ?)";
           params.push(`%${search}%`, `%${search}%`);
         }
-        if (label) {
+        if (label || tag) {
           query += " AND p.labels LIKE ?";
-          params.push(`%${label}%`);
+          params.push(`%${label || tag}%`);
         }
 
         query += " ORDER BY p.published_at DESC";
@@ -664,6 +665,71 @@ const server = Bun.serve({
       if (pathname.startsWith("/api/pages/") && method === "DELETE") {
         const id = Number(pathname.split("/")[3]);
         db.prepare("DELETE FROM pages WHERE id = ?").run(id);
+        return jsonResponse({ success: true });
+      }
+
+      // ADVERTISEMENTS API
+      const isAdsCollection = pathname === "/api/advertisements" || pathname === "/api/ads";
+      const isAdsItem = pathname.startsWith("/api/advertisements/") || pathname.startsWith("/api/ads/");
+
+      if (isAdsCollection && method === "GET") {
+        const blog_id = Number(url.searchParams.get("blog_id")) || 1;
+        const ads = db.query("SELECT * FROM advertisements WHERE blog_id = ? ORDER BY id DESC").all(blog_id);
+        return jsonResponse(ads);
+      }
+
+      if (isAdsCollection && method === "POST") {
+        const body: any = await req.json();
+        const blog_id = Number(body.blog_id) || 1;
+        const title = body.title || "Untitled Ad";
+        const description = body.description || "";
+        const image_url = body.image_url || body.image || body.cover_image || "";
+        const link_url = body.link_url || body.link || body.url || body.website || "";
+        const placement = body.placement || "both";
+        const is_active = body.is_active === false || body.is_active === 0 || body.active === false ? 0 : 1;
+
+        const res = db.prepare(`
+          INSERT INTO advertisements (blog_id, title, description, image_url, link_url, placement, is_active)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(blog_id, title, description, image_url, link_url, placement, is_active);
+
+        const created = db.query("SELECT * FROM advertisements WHERE id = ?").get(res.lastInsertRowid);
+        return jsonResponse(created, 201);
+      }
+
+      if (isAdsItem && method === "GET") {
+        const id = pathname.split("/").pop() || "";
+        const ad = db.query("SELECT * FROM advertisements WHERE id = ?").get(Number(id));
+        if (!ad) return jsonResponse({ error: "Advertisement not found" }, 404);
+        return jsonResponse(ad);
+      }
+
+      if (isAdsItem && method === "PUT") {
+        const id = Number(pathname.split("/").pop());
+        const body: any = await req.json();
+        const existing = db.query("SELECT * FROM advertisements WHERE id = ?").get(id) as any;
+        if (!existing) return jsonResponse({ error: "Advertisement not found" }, 404);
+
+        const title = body.title !== undefined ? body.title : existing.title;
+        const description = body.description !== undefined ? body.description : existing.description;
+        const image_url = body.image_url !== undefined ? body.image_url : (body.image !== undefined ? body.image : existing.image_url);
+        const link_url = body.link_url !== undefined ? body.link_url : (body.link !== undefined ? body.link : (body.url !== undefined ? body.url : existing.link_url));
+        const placement = body.placement !== undefined ? body.placement : existing.placement;
+        const is_active = body.is_active !== undefined ? (body.is_active ? 1 : 0) : (body.active !== undefined ? (body.active ? 1 : 0) : existing.is_active);
+
+        db.prepare(`
+          UPDATE advertisements
+          SET title = ?, description = ?, image_url = ?, link_url = ?, placement = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(title, description, image_url, link_url, placement, is_active, id);
+
+        const updated = db.query("SELECT * FROM advertisements WHERE id = ?").get(id);
+        return jsonResponse(updated);
+      }
+
+      if (isAdsItem && method === "DELETE") {
+        const id = Number(pathname.split("/").pop());
+        db.prepare("DELETE FROM advertisements WHERE id = ?").run(id);
         return jsonResponse({ success: true });
       }
 

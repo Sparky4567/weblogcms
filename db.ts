@@ -103,6 +103,20 @@ export function initDB() {
       FOREIGN KEY (blog_id) REFERENCES blogs(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS advertisements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      blog_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
+      link_url TEXT DEFAULT '',
+      placement TEXT DEFAULT 'both',
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (blog_id) REFERENCES blogs(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
@@ -120,6 +134,8 @@ export function initDB() {
       expires_at DATETIME NOT NULL
     );
   `);
+
+  try { db.exec("CREATE VIEW IF NOT EXISTS ads AS SELECT * FROM advertisements;"); } catch (e) {}
 
   // Ensure OTP columns exist on users table
   try { db.exec("ALTER TABLE users ADD COLUMN otp_secret TEXT;"); } catch (e) {}
@@ -146,7 +162,7 @@ export function seedMockData() {
 
 export function seedDatabase() {
   // Clear existing & reset autoincrement counters
-  db.exec("DELETE FROM analytics; DELETE FROM gadgets; DELETE FROM comments; DELETE FROM pages; DELETE FROM posts; DELETE FROM blogs;");
+  db.exec("DELETE FROM analytics; DELETE FROM advertisements; DELETE FROM gadgets; DELETE FROM comments; DELETE FROM pages; DELETE FROM posts; DELETE FROM blogs;");
   try { db.exec("DELETE FROM sqlite_sequence;"); } catch (e) {}
 
   // Default Blog 1
@@ -443,6 +459,21 @@ export function seedDatabase() {
     1,
     1,
     JSON.stringify({ content: "© 2026 TechPulse Weblogger CMS. Powered by Bun Runtime & SQLite." })
+  );
+
+  // Insert Sample Advertisement
+  const insertAd = db.prepare(`
+    INSERT INTO advertisements (blog_id, title, description, image_url, link_url, placement, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  insertAd.run(
+    blogId,
+    "Sponsored: Bun Hosting",
+    "Deploy your Bun apps with zero config and blazing performance.",
+    "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
+    "https://example.com/bun-hosting",
+    "both",
+    1
   );
 
   // Insert Analytics data
