@@ -24,7 +24,7 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
 - 📊 **Built-in Analytics**: Lightweight visitor analytics tracking referral URLs, user agents, IP addresses, and view counts.
 - 📡 **RSS & Atom Feed Generator**: Built-in RSS feeds (`/feed.xml`, `/rss`, `/:slug/feed.xml`) for post distribution.
 - 💾 **Dual Storage Architecture**: Primary SQLite database storage (`weblog.db`) with support for flatfile JSON file syncing ([`flatfile.ts`](flatfile.ts)).
-- 🔐 **Authentication & Sessions**: Secure admin authentication using hashed credentials, session tokens, and cookie/header authorization ([`db.ts`](db.ts)).
+- 🔐 **Authentication & Sessions**: Secure admin authentication using hashed credentials, session tokens, cookie/header authorization, and optional TOTP two-factor authentication (Google Authenticator compatible) ([`db.ts`](db.ts)).
 - 📦 **Backup Export & Import**: Complete system backup export and restoration via JSON data transfer.
 - 📱 **Single-Page Application & PWA Ready**: Interactive frontend app in [`public/app.js`](public/app.js) with service worker support ([`public/sw.js`](public/sw.js)).
 - 📱 **Responsive, Mobile-First UI**: Adaptive layouts, mobile drawer navigation, touch-friendly controls, and fluid typography that fit phones, tablets, and large screens.
@@ -127,6 +127,11 @@ The test suite covers:
 - `POST /api/auth/logout` - Invalidate active session token
 - `GET /api/auth/check` - Validate session status
 - `PUT /api/auth/credentials` - Update admin username/password
+- `GET /api/auth/otp/status` - Get OTP/2FA status for the logged-in admin
+- `POST /api/auth/otp/setup` - Generate a new OTP secret and provisioning URI
+- `POST /api/auth/otp/enable` - Enable OTP after verifying a code
+- `POST /api/auth/otp/disable` - Disable OTP
+- `POST /api/auth/otp/verify` - Verify an OTP code (used in the login flow)
 
 ### 📰 Blogs (`/api/blogs`)
 - `GET /api/blogs` - List all weblogs

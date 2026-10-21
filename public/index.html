@@ -586,6 +586,45 @@
             </form>
           </div>
 
+          <!-- OTP / 2FA SECURITY CARD -->
+          <div class="glass-card" style="margin-bottom: 24px;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: white; margin-bottom: 8px;">🛡️ Two-Factor Authentication (OTP)</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Protect your admin account with a time-based one-time password (Google Authenticator, Authy, etc.).</p>
+            <div id="otp-status" style="margin-bottom: 12px; font-size: 0.88rem;"></div>
+            <div id="otp-setup-area" style="display: none;">
+              <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px;">
+                <img id="otp-qr" src="" alt="OTP QR Code" style="width: 160px; height: 160px; border-radius: 8px; background: white; padding: 6px;">
+                <div style="flex: 1; min-width: 200px;">
+                  <label class="form-label">Secret Key (manual entry)</label>
+                  <input type="text" id="otp-secret" class="form-input" readonly style="font-family: monospace; font-size: 0.85rem;">
+                  <p style="font-size: 0.78rem; color: #9ca3af; margin-top: 6px;">Scan the QR code or enter the secret in your authenticator app, then enter the 6-digit code below to enable.</p>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="otp-verify-code">Verification Code</label>
+                <input type="text" id="otp-verify-code" class="form-input" placeholder="6-digit code" inputmode="numeric">
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="btn-otp-enable" class="btn btn-primary">Enable OTP</button>
+                <button id="btn-otp-cancel" class="btn btn-secondary">Cancel</button>
+              </div>
+            </div>
+            <div id="otp-disable-area" style="display: none;">
+              <div class="form-group">
+                <label class="form-label" for="otp-disable-code">Current OTP Code</label>
+                <input type="text" id="otp-disable-code" class="form-input" placeholder="6-digit code" inputmode="numeric">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="otp-disable-password">Current Password</label>
+                <input type="password" id="otp-disable-password" class="form-input" placeholder="Current password">
+              </div>
+              <button id="btn-otp-disable" class="btn btn-danger">Disable OTP</button>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+              <button id="btn-otp-setup" class="btn btn-secondary">Set Up OTP</button>
+            </div>
+          </div>
+
           <div class="glass-card">
             <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 12px;">Backup & Data Management</h3>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Export your posts, comments, pages, and layout config as JSON or import backup files.</p>
@@ -790,6 +829,10 @@
       <div class="form-group">
         <label class="form-label" for="login-password">Password</label>
         <input type="password" id="login-password" class="form-input" placeholder="••••••••" value="admin123" required>
+      </div>
+      <div class="form-group" id="login-otp-group" style="display: none;">
+        <label class="form-label" for="login-otp">OTP Code (Google Authenticator)</label>
+        <input type="text" id="login-otp" class="form-input" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code">
       </div>
       <div style="margin-bottom: 20px; font-size: 0.8rem; color: #9ca3af; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px;">
         💡 Default Credentials: <code>admin</code> / <code>admin123</code>

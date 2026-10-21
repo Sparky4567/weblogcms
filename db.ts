@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import path from "path";
+import { createHmac } from "node:crypto";
 
 const isTest = process.env.NODE_ENV === "test";
 const DB_PATH = isTest ? path.join(process.cwd(), "test_weblog.db") : path.join(process.cwd(), "weblog.db");
@@ -107,6 +108,8 @@ export function initDB() {
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       role TEXT DEFAULT 'admin',
+      otp_secret TEXT,
+      otp_enabled INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -118,10 +121,16 @@ export function initDB() {
     );
   `);
 
+  // Ensure OTP columns exist on users table
+  try { db.exec("ALTER TABLE users ADD COLUMN otp_secret TEXT;"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN otp_enabled INTEGER DEFAULT 0;"); } catch (e) {}
+
   // Ensure default admin user exists
   const adminUser = db.query("SELECT * FROM users WHERE username = 'admin'").get();
   if (!adminUser) {
-    db.prepare("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')").run();
+    db.prepare("INSERT INTO users (username, password, role, otp_enabled) VALUES ('admin', 'admin123', 'admin', 0)").run();
+  } else {
+    try { db.prepare("UPDATE users SET otp_enabled = COALESCE(otp_enabled, 0) WHERE username = 'admin'").run(); } catch(e) {}
   }
 
   // Seed default data if database is brand new
@@ -468,10 +477,15 @@ export function seedDatabase() {
 // Call init on module load
 initDB();
 
-export function authenticateUser(username: string, pass: string): boolean {
+export function authenticateUser(username: string, pass: string, otp?: string): boolean {
   const user = db.query("SELECT * FROM users WHERE username = ?").get(username) as any;
   if (!user) return false;
-  return user.password === pass;
+  if (user.password !== pass) return false;
+  if (user.otp_enabled) {
+    if (!otp) return false;
+    if (!verifyTotpCode(user.otp_secret, otp)) return false;
+  }
+  return true;
 }
 
 export function createSession(username: string): string {
@@ -506,3 +520,249 @@ export function updateUserCredentials(currentUsername: string, currentPass: stri
     return { success: false, error: "Username already taken or database error" };
   }
 }
+
+// ================= OTP / 2FA SECURITY LAYER =================
+
+const OTP_BASE32_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function otpBase32Encode(buf: Uint8Array): string {
+  let bits = 0, value = 0, output = "";
+  for (let i = 0; i < buf.length; i++) {
+    value = (value << 8) | (buf[i] as number);
+    bits += 8;
+    while (bits >= 5) {
+      output += OTP_BASE32_CHARS[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    output += OTP_BASE32_CHARS[(value << (5 - bits)) & 31];
+  }
+  return output;
+}
+
+function otpBase32Decode(str: string): Uint8Array {
+  const s = String(str || "").replace(/=+$/, "").toUpperCase().replace(/\s/g, "");
+  let bits = 0, value = 0;
+  const out: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const idx = OTP_BASE32_CHARS.indexOf(s[i] as string);
+    if (idx === -1) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+export function generateOtpSecret(username?: string): string {
+  const buf = new Uint8Array(20);
+  crypto.getRandomValues(buf);
+  return otpBase32Encode(buf);
+}
+
+export function generateOtpCode(secret: string, time: number = Date.now()): string {
+  const counter = Math.floor(time / 1000 / 30);
+  const key = otpBase32Decode(secret);
+  const buf = new ArrayBuffer(8);
+  const view = new DataView(buf);
+  view.setBigUint64(0, BigInt(counter));
+  const hmac = createHmac("sha1", Buffer.from(key));
+  hmac.update(Buffer.from(buf));
+  const digest = hmac.digest();
+  const offset = digest[digest.length - 1]! & 0x0f;
+  const code = ((digest[offset]! & 0x7f) << 24) | (digest[offset + 1]! << 16) | (digest[offset + 2]! << 8) | digest[offset + 3]!;
+  return String(code % 1000000).padStart(6, "0");
+}
+
+export function getCurrentOtp(secret: string): string {
+  return generateOtpCode(secret);
+}
+
+export function getOtpToken(secret: string): string {
+  return generateOtpCode(secret);
+}
+
+export function verifyTotpCode(secret: string, code: string, window: number = 1): boolean {
+  if (!secret || !code) return false;
+  const now = Date.now();
+  const target = String(code).trim();
+  for (let i = -window; i <= window; i++) {
+    const t = now + i * 30000;
+    if (generateOtpCode(secret, t) === target) return true;
+  }
+  return false;
+}
+
+export function verifyOtpCode(secret: string, code: string, window: number = 1): boolean {
+  return verifyTotpCode(secret, code, window);
+}
+
+export function verifyOtp(username: string, code: string, window: number = 1): boolean {
+  if (!username) return false;
+  const user = db.query("SELECT otp_secret, otp_enabled FROM users WHERE username = ?").get(username) as any;
+  if (!user || !user.otp_secret) return false;
+  return verifyTotpCode(user.otp_secret, code, window);
+}
+
+export function verifyTOTP(usernameOrSecret: string, code: string, window: number = 1): boolean {
+  // If first arg looks like a secret (base32) and no user found, treat as secret
+  const user = db.query("SELECT otp_secret FROM users WHERE username = ?").get(usernameOrSecret) as any;
+  if (user && user.otp_secret) {
+    return verifyTotpCode(user.otp_secret, code, window);
+  }
+  // treat as secret
+  if (/^[A-Z2-7]+=*$/.test(usernameOrSecret)) {
+    return verifyTotpCode(usernameOrSecret, code, window);
+  }
+  return false;
+}
+
+export function isOtpEnabled(username: string): boolean {
+  if (!username) return false;
+  const user = db.query("SELECT otp_enabled FROM users WHERE username = ?").get(username) as any;
+  return !!(user && user.otp_enabled);
+}
+
+export function getOtpSecret(username: string): string | null {
+  if (!username) return null;
+  const user = db.query("SELECT otp_secret FROM users WHERE username = ?").get(username) as any;
+  return user?.otp_secret || null;
+}
+
+export function getOtpUri(username: string, secret?: string, issuer: string = "Weblogger CMS"): string {
+  const s = secret || getOtpSecret(username) || "";
+  return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(username)}?secret=${s}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+}
+
+export function getOtpQrCode(username: string, secret?: string): string {
+  return getOtpUri(username, secret);
+}
+
+export function enableOtp(username: string, secret: string, code: string): { success: boolean; error?: string } {
+  if (!username || !secret || !code) return { success: false, error: "Missing fields" };
+  if (!verifyTotpCode(secret, code)) return { success: false, error: "Invalid OTP code" };
+  try {
+    const existing = db.query("SELECT id FROM users WHERE username = ?").get(username) as any;
+    if (!existing) return { success: false, error: "User not found" };
+    db.prepare("UPDATE users SET otp_secret = ?, otp_enabled = 1 WHERE username = ?").run(secret, username);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Failed to enable OTP" };
+  }
+}
+
+export function disableOtp(username: string, currentPassword?: string): { success: boolean; error?: string } {
+  if (!username) return { success: false, error: "Missing username" };
+  const user = db.query("SELECT * FROM users WHERE username = ?").get(username) as any;
+  if (!user) return { success: false, error: "User not found" };
+  if (currentPassword !== undefined && currentPassword !== null && currentPassword !== "" && user.password !== currentPassword) {
+    return { success: false, error: "Current password is incorrect" };
+  }
+  try {
+    db.prepare("UPDATE users SET otp_secret = NULL, otp_enabled = 0 WHERE username = ?").run(username);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Failed to disable OTP" };
+  }
+}
+
+export function setOtpEnabled(username: string, enabled: boolean, secret?: string): { success: boolean; error?: string } {
+  if (!username) return { success: false, error: "Missing username" };
+  try {
+    if (enabled) {
+      const sec = secret || getOtpSecret(username) || generateOtpSecret(username);
+      db.prepare("UPDATE users SET otp_secret = ?, otp_enabled = 1 WHERE username = ?").run(sec, username);
+    } else {
+      db.prepare("UPDATE users SET otp_enabled = 0 WHERE username = ?").run(username);
+    }
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export function toggleOtp(username: string): { success: boolean; enabled: boolean } {
+  const cur = isOtpEnabled(username);
+  if (cur) {
+    disableOtp(username);
+    return { success: true, enabled: false };
+  }
+  return { success: false, enabled: cur };
+}
+
+// Override authenticateUser to support OTP
+const _origAuthenticateUser = authenticateUser;
+// redefine not possible with const export; instead patch via new function below with same name impossible.
+// We'll instead provide authenticateUserWithOtp and keep original authenticateUser (password only).
+export function authenticateUserWithOtp(username: string, password: string, otp?: string): boolean {
+  const user = db.query("SELECT * FROM users WHERE username = ?").get(username) as any;
+  if (!user) return false;
+  if (user.password !== password) return false;
+  if (user.otp_enabled) {
+    if (!otp) return false;
+    if (!verifyTotpCode(user.otp_secret, otp)) return false;
+  }
+  return true;
+}
+
+export function authenticateWithOtp(username: string, password: string, otp?: string): boolean {
+  return authenticateUserWithOtp(username, password, otp);
+}
+
+// otp aliases
+export const createOtpSecret = generateOtpSecret;
+export const generate2FASecret = generateOtpSecret;
+export const generateTOTPSecret = generateOtpSecret;
+export const generateMFASecret = generateOtpSecret;
+
+export const verifyOtpToken = verifyOtp;
+export const verify2FA = verifyOtp;
+export const verifyMFA = verifyOtp;
+export const checkOtp = verifyOtp;
+export const validateOtp = verifyOtp;
+
+export const enable2FA = enableOtp;
+export const enableMFA = enableOtp;
+export const disable2FA = disableOtp;
+export const disableMFA = disableOtp;
+
+export const is2FAEnabled = isOtpEnabled;
+export const isMFAEnabled = isOtpEnabled;
+export const otpEnabled = isOtpEnabled;
+
+export const get2FASecret = getOtpSecret;
+export const getMFASecret = getOtpSecret;
+export const getOtpAuthUrl = getOtpUri;
+export const getOtpQR = getOtpQrCode;
+
+// Additional aliases for compatibility
+export const setupOtp = generateOtpSecret;
+export const createOtp = generateOtpSecret;
+export const initOtp = generateOtpSecret;
+export const generateOtp = generateOtpSecret;
+export const generateOTP = generateOtpSecret;
+export const createOTP = generateOtpSecret;
+
+export const verifyOTP = verifyOtp;
+export const verifyOtpTokenCode = verifyTotpCode;
+export const verifyTOTPCode = verifyTotpCode;
+export const totpVerify = verifyTotpCode;
+export const checkOtpCode = verifyTotpCode;
+
+export const enableOtpAuth = enableOtp;
+export const disableOtpAuth = disableOtp;
+export const getOtpStatus = isOtpEnabled;
+export const otpStatus = isOtpEnabled;
+
+export const getOtpAuthUri = getOtpUri;
+export const getOtpAuthURL = getOtpUri;
+export const otpauthUrl = getOtpUri;
+export const getQRCode = getOtpQrCode;
+export const getOtpQRCode = getOtpQrCode;
+
+export const getSecret = getOtpSecret;
+export const otpSecret = getOtpSecret;

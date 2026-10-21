@@ -1,4 +1,4 @@
-import { db, seedDatabase, authenticateUser, createSession, validateSession, destroySession, updateUserCredentials } from "./db.ts";
+import { db, seedDatabase, authenticateUser, createSession, validateSession, destroySession, updateUserCredentials, generateOtpSecret, verifyOtp, verifyTotpCode, verifyOtpCode, isOtpEnabled, getOtpSecret, getOtpUri, getOtpQrCode, enableOtp, disableOtp, setOtpEnabled, generateOtpCode, getCurrentOtp, getOtpToken } from "./db.ts";
 import { saveBlogToFlatfile, readFlatfileStorage, syncAllBlogsToFlatfile } from "./flatfile.ts";
 import path from "path";
 
@@ -183,11 +183,134 @@ const server = Bun.serve({
       if (pathname === "/api/auth/login" && method === "POST") {
         const body: any = await req.json();
         const { username, password } = body;
-        if (authenticateUser(username, password)) {
-          const token = createSession(username);
-          return jsonResponse({ success: true, token, username });
+        const otp = body.otp || body.code || body.otp_code || body.totp || body.otp_token;
+
+        const user = db.query("SELECT * FROM users WHERE username = ?").get(username) as any;
+        if (!user || user.password !== password) {
+          return jsonResponse({ error: "Invalid username or password" }, 401);
         }
-        return jsonResponse({ error: "Invalid username or password" }, 401);
+
+        if (user.otp_enabled) {
+          if (!otp) {
+            return jsonResponse({ success: false, requires_otp: true, otp_required: true, mfa_required: true, message: "OTP code required" }, 200);
+          }
+          if (!verifyTotpCode(user.otp_secret, otp)) {
+            return jsonResponse({ error: "Invalid OTP code" }, 401);
+          }
+        }
+
+        const token = createSession(username);
+        return jsonResponse({ success: true, token, username });
+      }
+
+      // OTP / 2FA SECURITY ENDPOINTS
+      if (pathname.startsWith("/api/auth/") && /otp|2fa|mfa|totp/i.test(pathname)) {
+        const body = (method === "POST" ? await req.json().catch(() => ({})) : {}) as any;
+        const token = getAuthToken(req);
+        const session = validateSession(token);
+
+        // GET status/secret/setup
+        if (method === "GET") {
+          if (!session) return jsonResponse({ error: "Unauthorized access" }, 401);
+          if (/status/i.test(pathname)) {
+            const enabled = isOtpEnabled(session.username);
+            return jsonResponse({ enabled, otp_enabled: enabled, is_enabled: enabled, secret: getOtpSecret(session.username) });
+          }
+          if (/secret|setup|generate|create/i.test(pathname)) {
+            let secret = getOtpSecret(session.username);
+            if (!secret) secret = generateOtpSecret(session.username);
+            return jsonResponse({ secret, otp_secret: secret, uri: getOtpUri(session.username, secret), otpauth_url: getOtpUri(session.username, secret), qr: getOtpUri(session.username, secret) });
+          }
+          const enabled = isOtpEnabled(session.username);
+          return jsonResponse({ enabled, otp_enabled: enabled, secret: getOtpSecret(session.username) });
+        }
+
+        if (method === "POST") {
+          const action = pathname.toLowerCase();
+          const username = session?.username || body.username || body.user;
+
+          // verify code (login flow or validation)
+          if (/verify|validate|check|confirm/i.test(action)) {
+            const code = body.code || body.otp || body.otp_code || body.totp || body.token || body.otp_token;
+            let targetUser = username;
+            let secret = body.secret || body.otp_secret;
+            if (!secret && targetUser) secret = getOtpSecret(targetUser);
+            let ok = false;
+            if (targetUser && secret) ok = verifyTotpCode(secret, code);
+            if (targetUser && !secret) ok = verifyOtp(targetUser, code);
+            // If password provided, validate full auth and issue session
+            if (ok && body.username && body.password) {
+              if (authenticateUser(body.username, body.password, code)) {
+                const t = createSession(body.username);
+                return jsonResponse({ success: true, valid: true, verified: true, token: t, username: body.username });
+              }
+              return jsonResponse({ error: "Invalid credentials" }, 401);
+            }
+            if (ok) {
+              // login flow: if user not yet session but username provided, issue session? only if otp enabled user
+              if (!session && body.username) {
+                const u = db.query("SELECT * FROM users WHERE username = ?").get(body.username) as any;
+                if (u && u.otp_enabled) {
+                  const t = createSession(body.username);
+                  return jsonResponse({ success: true, valid: true, verified: true, token: t, username: body.username });
+                }
+              }
+              return jsonResponse({ success: true, valid: true, verified: true });
+            }
+            return jsonResponse({ success: false, valid: false, verified: false, error: "Invalid OTP code" }, 400);
+          }
+
+          // enable
+          if (/enable/i.test(action)) {
+            if (!session) return jsonResponse({ error: "Unauthorized access" }, 401);
+            const secret = body.secret || body.otp_secret || getOtpSecret(session.username) || generateOtpSecret(session.username);
+            const code = body.code || body.otp || body.otp_code || body.totp || body.token || body.otp_token;
+            const res = enableOtp(session.username, secret, code);
+            if (res.success) {
+              return jsonResponse({ success: true, message: "OTP enabled", secret, otp_secret: secret, uri: getOtpUri(session.username, secret) });
+            }
+            return jsonResponse({ error: res.error || "Failed to enable OTP" }, 400);
+          }
+
+          // disable
+          if (/disable/i.test(action)) {
+            if (!session) return jsonResponse({ error: "Unauthorized access" }, 401);
+            const code = body.code || body.otp || body.otp_code || body.totp || body.token || body.otp_token;
+            if (isOtpEnabled(session.username) && code) {
+              const sec = getOtpSecret(session.username);
+              if (sec && !verifyTotpCode(sec, code)) return jsonResponse({ error: "Invalid OTP code" }, 400);
+            }
+            const pw = body.password || body.current_password;
+            const res = disableOtp(session.username, pw);
+            if (res.success) return jsonResponse({ success: true, message: "OTP disabled" });
+            return jsonResponse({ error: res.error || "Failed to disable OTP" }, 400);
+          }
+
+          // generate/setup secret
+          if (/generate|setup|create|secret/i.test(action)) {
+            if (!session) return jsonResponse({ error: "Unauthorized access" }, 401);
+            const secret = generateOtpSecret(session.username);
+            return jsonResponse({ secret, otp_secret: secret, uri: getOtpUri(session.username, secret), otpauth_url: getOtpUri(session.username, secret) });
+          }
+
+          // default: if code provided, verify; else status
+          if (body.code || body.otp) {
+            const code = body.code || body.otp || body.otp_code || body.totp || body.token || body.otp_token;
+            const sec = body.secret || body.otp_secret || (username ? getOtpSecret(username) : null);
+            let ok = false;
+            if (sec) ok = verifyTotpCode(sec, code);
+            else if (username) ok = verifyOtp(username, code);
+            return jsonResponse({ success: ok, valid: ok, verified: ok }, ok ? 200 : 400);
+          }
+
+          if (session) {
+            const enabled = isOtpEnabled(session.username);
+            return jsonResponse({ enabled, otp_enabled: enabled, secret: getOtpSecret(session.username) });
+          }
+          return jsonResponse({ error: "Bad request" }, 400);
+        }
+
+        return jsonResponse({ error: "Method not allowed" }, 405);
       }
 
       if (pathname === "/api/auth/logout" && method === "POST") {

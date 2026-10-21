@@ -374,22 +374,38 @@ function setupEventListeners() {
       e.preventDefault();
       const username = document.getElementById("login-username").value;
       const password = document.getElementById("login-password").value;
+      const otpInput = document.getElementById("login-otp");
+      const otp = otpInput ? otpInput.value : "";
+      const otpGroup = document.getElementById("login-otp-group");
       const alertEl = document.getElementById("login-error-alert");
       if (alertEl) alertEl.style.display = "none";
 
       try {
+        const payload = { username, password };
+        if (otp) payload.otp = otp;
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (res.ok && data.success) {
           safeLocalStorageSet("weblogger_admin_token", data.token);
           closeModal("modal-admin-login");
           showToast(`Logged in as ${data.username}!`);
+          if (otpInput) otpInput.value = "";
+          if (otpGroup) otpGroup.style.display = "none";
           await checkAuthStatus();
           await handleLocationRoute(false);
+        } else if (data.requires_otp || data.otp_required || data.mfa_required) {
+          if (otpGroup) otpGroup.style.display = "block";
+          if (alertEl) {
+            alertEl.style.background = "rgba(59, 130, 246, 0.15)";
+            alertEl.style.border = "1px solid rgba(59, 130, 246, 0.4)";
+            alertEl.style.color = "#93c5fd";
+            alertEl.textContent = "Enter the 6-digit code from your authenticator app.";
+            alertEl.style.display = "block";
+          }
         } else {
           if (alertEl) {
             alertEl.textContent = data.error || "Invalid login credentials";
@@ -466,6 +482,107 @@ function setupEventListeners() {
       }
     });
   }
+
+  // OTP / 2FA Settings Wiring
+  window.refreshOtpStatus = async function refreshOtpStatus() {
+    try {
+      const res = await fetchWithAuth("/api/auth/otp/status");
+      const data = await res.json();
+      const statusEl = document.getElementById("otp-status");
+      const setupBtn = document.getElementById("btn-otp-setup");
+      const disableArea = document.getElementById("otp-disable-area");
+      const setupArea = document.getElementById("otp-setup-area");
+      if (data.otp_enabled || data.enabled || data.is_enabled) {
+        if (statusEl) statusEl.innerHTML = "✅ OTP is <strong>enabled</strong> for this account.";
+        if (setupBtn) setupBtn.style.display = "none";
+        if (disableArea) disableArea.style.display = "block";
+        if (setupArea) setupArea.style.display = "none";
+      } else {
+        if (statusEl) statusEl.innerHTML = "⚠️ OTP is <strong>disabled</strong>. Your account relies on password only.";
+        if (setupBtn) setupBtn.style.display = "inline-block";
+        if (disableArea) disableArea.style.display = "none";
+      }
+    } catch (e) {}
+  }
+
+  const btnOtpSetup = document.getElementById("btn-otp-setup");
+  if (btnOtpSetup) {
+    btnOtpSetup.addEventListener("click", async () => {
+      try {
+        const res = await fetchWithAuth("/api/auth/otp/setup", { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.secret) {
+          const secret = data.secret || data.otp_secret;
+          const uri = data.uri || data.otpauth_url || data.otpauth_url;
+          document.getElementById("otp-secret").value = secret;
+          const qr = document.getElementById("otp-qr");
+          if (qr) qr.src = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(uri);
+          document.getElementById("otp-setup-area").style.display = "block";
+          document.getElementById("btn-otp-setup").style.display = "none";
+        } else {
+          showToast(data.error || "Failed to start OTP setup", true);
+        }
+      } catch (e) { showToast("Network error", true); }
+    });
+  }
+
+  const btnOtpCancel = document.getElementById("btn-otp-cancel");
+  if (btnOtpCancel) {
+    btnOtpCancel.addEventListener("click", () => {
+      document.getElementById("otp-setup-area").style.display = "none";
+      document.getElementById("btn-otp-setup").style.display = "inline-block";
+    });
+  }
+
+  const btnOtpEnable = document.getElementById("btn-otp-enable");
+  if (btnOtpEnable) {
+    btnOtpEnable.addEventListener("click", async () => {
+      const secret = document.getElementById("otp-secret").value;
+      const code = document.getElementById("otp-verify-code").value;
+      try {
+        const res = await fetchWithAuth("/api/auth/otp/enable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ secret, code })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast("OTP enabled successfully!");
+          document.getElementById("otp-setup-area").style.display = "none";
+          if (window.refreshOtpStatus) await window.refreshOtpStatus();
+        } else {
+          showToast(data.error || "Failed to enable OTP", true);
+        }
+      } catch (e) { showToast("Network error", true); }
+    });
+  }
+
+  const btnOtpDisable = document.getElementById("btn-otp-disable");
+  if (btnOtpDisable) {
+    btnOtpDisable.addEventListener("click", async () => {
+      const code = document.getElementById("otp-disable-code").value;
+      const password = document.getElementById("otp-disable-password").value;
+      try {
+        const res = await fetchWithAuth("/api/auth/otp/disable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast("OTP disabled.");
+          if (window.refreshOtpStatus) await window.refreshOtpStatus();
+        } else {
+          showToast(data.error || "Failed to disable OTP", true);
+        }
+      } catch (e) { showToast("Network error", true); }
+    });
+  }
+
+  // Refresh OTP status when settings view opens
+  const origSwitchView = window.switchView;
+  // hook via nav clicks is handled below; also call on load if settings visible
+  if (window.refreshOtpStatus) window.refreshOtpStatus();
 
   // Admin Logout Button
   const btnLogout = document.getElementById("btn-admin-logout");
@@ -651,6 +768,10 @@ function switchView(viewName, updateUrl = true) {
     if (window.location.pathname !== targetPath) {
       history.pushState({ view: viewName }, "", targetPath);
     }
+  }
+
+  if (viewName === "settings" && window.refreshOtpStatus) {
+    window.refreshOtpStatus();
   }
 
   // Page title
