@@ -26,6 +26,8 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
 - 🔐 **Authentication & Sessions**: Secure admin authentication using hashed credentials, session tokens, and cookie/header authorization ([`db.ts`](db.ts)).
 - 📦 **Backup Export & Import**: Complete system backup export and restoration via JSON data transfer.
 - 📱 **Single-Page Application & PWA Ready**: Interactive frontend app in [`public/app.js`](public/app.js) with service worker support ([`public/sw.js`](public/sw.js)).
+- 📱 **Responsive, Mobile-First UI**: Adaptive layouts, mobile drawer navigation, touch-friendly controls, and fluid typography that fit phones, tablets, and large screens.
+- ♿ **Accessibility**: Keyboard focus outlines, reduced-motion support, and semantic HTML structure.
 
 ---
 
@@ -60,7 +62,7 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
 1. Clone the repository:
    ```bash
    git clone https://github.com/Sparky4567/weblogcms.git
-   cd weblog
+   cd weblogcms
    ```
 
 2. Install dependencies:

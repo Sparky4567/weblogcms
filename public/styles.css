@@ -1202,3 +1202,282 @@ dialog.custom-dialog-fullscreen {
     font-size: 0.82rem;
   }
 }
+
+/* ==========================================================================
+   RESPONSIVE ENHANCEMENTS — FIT ALL SCREENS
+   ========================================================================== */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+#app-container,
+.app-main,
+.content-body {
+  max-width: 100%;
+}
+
+/* Fluid sidebar that adapts to viewport while staying usable */
+:root {
+  --sidebar-width: clamp(220px, 18vw, 260px);
+}
+
+/* Smooth touch scrolling for tables */
+.table-responsive {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Large screens: give content a bit more room */
+@media (min-width: 1440px) {
+  .content-body {
+    max-width: 1600px;
+  }
+  .pub-container {
+    max-width: 1320px;
+  }
+}
+
+/* Tablet tweaks */
+@media (max-width: 1024px) {
+  .content-body {
+    padding: 20px 16px;
+  }
+  .top-bar {
+    padding: 0 16px;
+  }
+  .glass-card {
+    padding: 18px;
+  }
+}
+
+/* Mobile drawer & touch targets */
+@media (max-width: 868px) {
+  .btn,
+  .nav-item,
+  .tool-btn {
+    min-height: 44px;
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    font-size: 16px; /* prevents iOS auto-zoom on focus */
+  }
+
+  .top-bar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .page-title-box {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .page-title {
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .top-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .content-body {
+    padding: 14px 10px;
+  }
+
+  .glass-card {
+    padding: 14px;
+  }
+
+  #admin-user-box {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .editor-content-area,
+  .editor-html-textarea {
+    min-height: 260px;
+  }
+}
+
+/* Collapse multi-column grids earlier on small screens */
+@media (max-width: 640px) {
+  .responsive-grid-2col,
+  .responsive-grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pub-container {
+    grid-template-columns: 1fr;
+    padding: 16px 10px;
+  }
+
+  .pub-header-overlay {
+    width: 100%;
+    padding: 18px 12px;
+  }
+
+  .pub-blog-title {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+
+  .pub-post-cover {
+    height: 180px;
+  }
+
+  .pub-post-body {
+    padding: 14px;
+  }
+
+  .pub-post-title {
+    font-size: 1.25rem;
+  }
+
+  .pub-post-meta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .content-body {
+    padding: 10px 8px;
+  }
+
+  .glass-card {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .theme-preview-img {
+    height: 110px;
+  }
+
+  .top-bar {
+    padding: 6px 8px;
+  }
+
+  .page-title {
+    font-size: 0.95rem;
+  }
+
+  .btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  .btn-sm {
+    padding: 5px 9px;
+    font-size: 0.75rem;
+  }
+
+  dialog.custom-dialog {
+    width: 96%;
+    max-width: 96vw;
+    padding: 12px;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+
+  .modal-close {
+    font-size: 1.3rem;
+  }
+
+  #toast-container {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .toast {
+    width: 100%;
+    font-size: 0.82rem;
+  }
+
+  .custom-table th,
+  .custom-table td {
+    padding: 8px 8px;
+    font-size: 0.78rem;
+  }
+
+  .mobile-menu-toggle {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Use dynamic viewport units for fullscreen dialogs on mobile browsers */
+dialog.custom-dialog-fullscreen {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+/* Improve focus visibility for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print-friendly */
+@media print {
+  .app-sidebar,
+  .top-bar,
+  #toast-container,
+  dialog {
+    display: none !important;
+  }
+  .app-main {
+    margin-left: 0;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}

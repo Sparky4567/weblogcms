@@ -1764,7 +1764,7 @@ async function renderPublicBlogView(singlePostId = null, isPreview = false) {
         <!-- Add Comment Form -->
         <h4 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 12px;">Leave a Comment</h4>
         <form onsubmit="submitReaderComment(event, ${post.id})">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="responsive-grid-2col" style="gap: 12px; margin-bottom: 12px;">
             <input type="text" id="reader-name" placeholder="Your Name" class="form-input" required>
             <input type="email" id="reader-email" placeholder="Your Email" class="form-input">
           </div>
