@@ -394,7 +394,7 @@ const server = Bun.serve({
         // Add default gadgets for new blog
         const insertGadget = db.prepare("INSERT INTO gadgets (blog_id, type, title, section, position, config_json) VALUES (?, ?, ?, ?, ?, ?)");
         insertGadget.run(newBlogId, "profile", "About Me", "sidebar", 1, JSON.stringify({ show_avatar: true }));
-        insertGadget.run(newGadgetBlogId(newBlogId), "search", "Search Blog", "sidebar", 2, JSON.stringify({}));
+        insertGadget.run(newBlogId, "search", "Search Blog", "sidebar", 2, JSON.stringify({}));
         insertGadget.run(newBlogId, "popular_posts", "Popular Posts", "sidebar", 3, JSON.stringify({ limit: 5 }));
         insertGadget.run(newBlogId, "labels", "Tags", "sidebar", 4, JSON.stringify({ display_style: "cloud" }));
 
@@ -427,12 +427,13 @@ const server = Bun.serve({
         const custom_css = body.custom_css !== undefined ? body.custom_css : existing.custom_css;
 
         let settings_json = existing.settings_json || "{}";
-        if (body.settings_json !== undefined) {
+        const incomingSettings = body.settings_json !== undefined ? body.settings_json : body.settings;
+        if (incomingSettings !== undefined) {
           let existingObj = {};
           try { existingObj = JSON.parse(settings_json); } catch(e){}
-          let newObj = typeof body.settings_json === 'object' ? body.settings_json : {};
-          if (typeof body.settings_json === 'string') {
-            try { newObj = JSON.parse(body.settings_json); } catch(e){}
+          let newObj = (typeof incomingSettings === 'object' && incomingSettings !== null) ? incomingSettings : {};
+          if (typeof incomingSettings === 'string') {
+            try { newObj = JSON.parse(incomingSettings); } catch(e){}
           }
           settings_json = JSON.stringify({ ...existingObj, ...newObj });
         }
@@ -525,9 +526,9 @@ const server = Bun.serve({
         const author_name = body.author_name || "Admin Author";
 
         const res = db.prepare(`
-          INSERT INTO posts (blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name);
+          INSERT INTO posts (blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name, published_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
+        `).run(blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name, body.published_at || null);
 
         const newPost = db.query("SELECT * FROM posts WHERE id = ?").get(res.lastInsertRowid);
         return jsonResponse(newPost, 201);
@@ -557,20 +558,37 @@ const server = Bun.serve({
         if (!existing) return jsonResponse({ error: "Post not found" }, 404);
 
         const newContent = body.content !== undefined ? body.content : existing.content;
-        const newExcerpt = body.excerpt || (body.content !== undefined ? createExcerpt(newContent) : existing.excerpt);
+        let newExcerpt = existing.excerpt;
+        if (body.excerpt !== undefined) {
+          newExcerpt = body.excerpt ? body.excerpt : createExcerpt(newContent);
+        } else if (body.content !== undefined) {
+          newExcerpt = createExcerpt(newContent);
+        }
+
+        let newBlogId = existing.blog_id;
+        if (body.blog_id !== undefined) {
+          const bid = Number(body.blog_id);
+          const blogExists = db.query("SELECT id FROM blogs WHERE id = ?").get(bid);
+          if (blogExists) newBlogId = bid;
+        }
 
         db.prepare(`
           UPDATE posts
-          SET title = COALESCE(?, title),
+          SET blog_id = ?,
+              title = COALESCE(?, title),
               slug = COALESCE(?, slug),
               content = COALESCE(?, content),
               excerpt = ?,
               status = COALESCE(?, status),
               labels = COALESCE(?, labels),
               cover_image = COALESCE(?, cover_image),
+              author_name = COALESCE(?, author_name),
+              published_at = COALESCE(?, published_at),
+              views = COALESCE(?, views),
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(
+          newBlogId,
           body.title,
           body.slug ? slugify(body.slug) : null,
           body.content,
@@ -578,6 +596,9 @@ const server = Bun.serve({
           body.status,
           body.labels,
           body.cover_image,
+          body.author_name,
+          body.published_at || null,
+          body.views !== undefined ? Number(body.views) : null,
           id
         );
 
@@ -634,15 +655,23 @@ const server = Bun.serve({
         if (!existingPage) return jsonResponse({ error: "Page not found" }, 404);
 
         const newContent = body.content !== undefined ? body.content : existingPage.content;
-        let meta_description = body.meta_description !== undefined ? body.meta_description.trim() : existingPage.meta_description;
+        let meta_description = body.meta_description !== undefined ? String(body.meta_description).trim() : existingPage.meta_description;
 
         if (!meta_description) {
           meta_description = createExcerpt(newContent);
         }
 
+        let newBlogId = existingPage.blog_id;
+        if (body.blog_id !== undefined) {
+          const bid = Number(body.blog_id);
+          const blogExists = db.query("SELECT id FROM blogs WHERE id = ?").get(bid);
+          if (blogExists) newBlogId = bid;
+        }
+
         db.prepare(`
           UPDATE pages
-          SET title = COALESCE(?, title),
+          SET blog_id = ?,
+              title = COALESCE(?, title),
               slug = COALESCE(?, slug),
               content = COALESCE(?, content),
               meta_description = ?,
@@ -650,6 +679,7 @@ const server = Bun.serve({
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(
+          newBlogId,
           body.title,
           body.slug ? slugify(body.slug) : null,
           body.content,
@@ -933,6 +963,7 @@ const server = Bun.serve({
         const pages = db.query("SELECT * FROM pages WHERE blog_id = ?").all(blog_id);
         const gadgets = db.query("SELECT * FROM gadgets WHERE blog_id = ?").all(blog_id);
         const comments = db.query("SELECT c.* FROM comments c JOIN posts p ON c.post_id = p.id WHERE p.blog_id = ?").all(blog_id);
+        const advertisements = db.query("SELECT * FROM advertisements WHERE blog_id = ?").all(blog_id);
 
         return jsonResponse({
           version: "1.0",
@@ -941,7 +972,8 @@ const server = Bun.serve({
           posts,
           pages,
           gadgets,
-          comments
+          comments,
+          advertisements
         });
       }
 
@@ -953,29 +985,32 @@ const server = Bun.serve({
 
         // Create imported blog
         const b = data.blog;
-        const res = db.prepare("INSERT INTO blogs (name, slug, description, author_name, theme_id, settings_json) VALUES (?, ?, ?, ?, ?, ?)").run(
+        const res = db.prepare("INSERT INTO blogs (name, slug, description, author_name, author_bio, author_avatar, theme_id, custom_css, settings_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
           `${b.name} (Imported)`,
           `${b.slug}-imp-${Date.now().toString().slice(-4)}`,
           b.description,
           b.author_name,
+          b.author_bio,
+          b.author_avatar,
           b.theme_id || "contempo",
+          b.custom_css || "",
           b.settings_json || "{}"
         );
         const newBlogId = Number(res.lastInsertRowid);
 
         // Import posts
         if (Array.isArray(data.posts)) {
-          const insertP = db.prepare("INSERT INTO posts (blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name, views) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+          const insertP = db.prepare("INSERT INTO posts (blog_id, title, slug, content, excerpt, status, labels, cover_image, author_name, views, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))");
           for (const p of data.posts) {
-            insertP.run(newBlogId, p.title, p.slug, p.content, p.excerpt, p.status || 'published', p.labels, p.cover_image, p.author_name, p.views || 0);
+            insertP.run(newBlogId, p.title, p.slug, p.content, p.excerpt, p.status || 'published', p.labels, p.cover_image, p.author_name, p.views || 0, p.published_at || null);
           }
         }
 
         // Import pages
         if (Array.isArray(data.pages)) {
-          const insertPg = db.prepare("INSERT INTO pages (blog_id, title, slug, content, status) VALUES (?, ?, ?, ?, ?)");
+          const insertPg = db.prepare("INSERT INTO pages (blog_id, title, slug, content, meta_description, status) VALUES (?, ?, ?, ?, ?, ?)");
           for (const pg of data.pages) {
-            insertPg.run(newBlogId, pg.title, pg.slug, pg.content, pg.status || 'published');
+            insertPg.run(newBlogId, pg.title, pg.slug, pg.content, pg.meta_description || "", pg.status || 'published');
           }
         }
 
@@ -984,6 +1019,14 @@ const server = Bun.serve({
           const insertG = db.prepare("INSERT INTO gadgets (blog_id, type, title, section, position, is_enabled, config_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
           for (const g of data.gadgets) {
             insertG.run(newBlogId, g.type, g.title, g.section, g.position, g.is_enabled ?? 1, g.config_json);
+          }
+        }
+
+        // Import advertisements
+        if (Array.isArray(data.advertisements)) {
+          const insertAd = db.prepare("INSERT INTO advertisements (blog_id, title, description, image_url, link_url, placement, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
+          for (const a of data.advertisements) {
+            insertAd.run(newBlogId, a.title, a.description || "", a.image_url || "", a.link_url || "", a.placement || "both", a.is_active ?? 1);
           }
         }
 

@@ -23,7 +23,7 @@ A modern, fast, full-featured Weblog Content Management System (CMS) built entir
 - 🎨 **Theme Gallery**: Nine built-in templates (Contempo, Dracula, Cyberpunk, Nord, Solarized, Soho, Essential, Emporium, Terminal) plus customizable design tokens.
 - 📊 **Built-in Analytics**: Lightweight visitor analytics tracking referral URLs, user agents, IP addresses, and view counts.
 - 📡 **RSS & Atom Feed Generator**: Built-in RSS feeds (`/feed.xml`, `/rss`, `/:slug/feed.xml`) for post distribution.
-- 💾 **Database-Backed Persistence**: Posts, pages, and settings are persisted directly to the primary SQLite database (`weblog.db`); browser `localStorage` is no longer used to store savable content (only auth tokens and UI state). Flatfile JSON syncing ([`flatfile.ts`](flatfile.ts)) remains available for blog settings.
+- 💾 **Database-Backed Persistence**: Posts, pages, settings, and advertisements are persisted directly to the primary SQLite database (`weblog.db`); browser `localStorage` is no longer used to store savable content (only auth tokens and UI state). All savable fields (including author, publication date, views, and page metadata) are saved consistently through the same database-backed API flow. Flatfile JSON syncing ([`flatfile.ts`](flatfile.ts)) remains available for blog settings, and backup export/import now round-trips the full blog content.
 - 🔐 **Authentication & Sessions**: Secure admin authentication using hashed credentials, session tokens, cookie/header authorization, and optional TOTP two-factor authentication (Google Authenticator compatible) ([`db.ts`](db.ts)).
 - 📦 **Backup Export & Import**: Complete system backup export and restoration via JSON data transfer.
 - 📱 **Single-Page Application & PWA Ready**: Interactive frontend app in [`public/app.js`](public/app.js) with service worker support ([`public/sw.js`](public/sw.js)).
@@ -179,8 +179,8 @@ The test suite covers:
 ### 📊 Analytics & Utilities
 - `POST /api/track` - Log page view event
 - `GET /api/stats?blog_id=:id` - Retrieve blog analytics
-- `GET /api/export` - Export full database to JSON
-- `POST /api/import` - Import database from JSON backup
+- `GET /api/export` - Export full database to JSON (blog, posts, pages, gadgets, comments, advertisements)
+- `POST /api/import` - Import database from JSON backup (restores blog, posts, pages, gadgets, and advertisements)
 - `GET /api/flatfile/settings` - Read flatfile settings
 - `POST /api/flatfile/sync` - Synchronize database blogs to JSON flatfile
 - `GET /feed.xml` / `GET /rss` - Dynamic RSS feed generation
